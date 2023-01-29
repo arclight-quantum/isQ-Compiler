@@ -46,7 +46,7 @@ We provide two Docker images with isQ compiler builtin: one for normal users pro
 
 ```bash
 # Ubuntu-based Docker image.
-docker run -it arclightquantum/isqc:0.0.1 bash
+docker run -it arclightquantum/isqc:ubuntu-0.0.1 bash
 isqc --version # Run in container.
 # Binary only Docker image.
 docker run --rm -v $(pwd):/workdir arclightquantum/isqc:0.0.1 isqc --version

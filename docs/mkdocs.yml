@@ -1,6 +1,6 @@
-site_name: isQ Docs
+site_name: isQ Compiler Docs
 theme:
-  name: 'readthedocs'
+  name: 'material'
 
 nav:
   - Content:
@@ -9,6 +9,10 @@ nav:
     - Usage: usage.md
     - isQ Programming Language: grammar.md
     - Examples: example.md
+    - Development Setup: devsetup.md
 
-markdown_extentions:
+markdown_extensions:
   - admonition
+
+repo_name: arclight-quantum/isQ-Compiler
+repo_url: https://github.com/arclight-quantum/isQ-Compiler
