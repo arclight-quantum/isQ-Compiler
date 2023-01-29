@@ -13,6 +13,12 @@ nav:
 
 markdown_extensions:
   - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+
 
 repo_name: arclight-quantum/isQ-Compiler
 repo_url: https://github.com/arclight-quantum/isQ-Compiler
