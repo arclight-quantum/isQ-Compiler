@@ -1,0 +1,7 @@
+/target
+/codegen/target
+/examples/*/bin
+/examples/*/obj
+__pycache__
+/result
+/result-bin
