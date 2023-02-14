@@ -1,4 +1,3 @@
-
 /*
 isQ operator precedence and associativity table:
 Precedence Operator  Associativity
@@ -17,16 +16,13 @@ Precedence Operator  Associativity
 1          + - ! not Right-to-left         
 0          [] ()     Left-to-right
 */
+use super::*;
 
 trait Precedence{
     fn get_binaryop_type(self)->Option<BinaryOp>;
     fn is_right_to_left(self)->Option<bool>;
     fn get_precedence(self)->usize;
 }
-use ReservedOp::*;
-use nom::{combinator::*, sequence::*};
-
-use crate::lang::{ast::{BinaryOp, CmpType, ExprNode, Expr}, tokens::ReservedOp};
 
 use super::*;
 impl Precedence for ReservedOp{
@@ -311,4 +307,23 @@ fn parse_level_13<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LExpr>{
 
 pub fn parse_expr<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LExpr>{
     parse_level_13(s)
+}
+
+#[cfg(test)]
+mod tests{
+    use nom::combinator::all_consuming;
+
+    use crate::lang::ast::LExpr;
+
+    use super::{super::tests::*, parse_expr};
+    fn test_parse_expr(expr: &str)->LExpr{
+        let tokens = tokenize(expr);
+        let s = all_consuming(parse_expr)(&tokens).unwrap().1;
+        s
+    }
+    #[test]
+    fn test_parse_expr_examples(){
+        println!("{:?}", test_parse_expr("1+2+3+2*4++1--2**2*(1+foo(bar, 12+34+arr[1](arr, arr)[baz]))"));
+        println!("{:?}", test_parse_expr("(f(x(x)))(f(x(x)))"));
+    }
 }
