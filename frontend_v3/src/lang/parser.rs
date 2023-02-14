@@ -1,93 +1,15 @@
 // Hand-written parser.
 
-/*
-isQ operator precedence and associativity table:
-Precedence Operator  Associativity
-13         :         N/A
-12         || or     Left-to-right
-11         && and    Left-to-right
-10         |         Left-to-right
-9          ^         Left-to-right
-8          &         Left-to-right
-7          == !=     Left-to-right
-6          < > >= <= N/A
-5          >> <<     Left-to-right
-4          + -       Left-to-right
-3          * / %     Left-to-right
-2          **        Right-to-left
-1          + - ! not Right-to-left         
-0          [] ()     Left-to-right
-*/
+use nom::{IResult, combinator::{verify, opt, map}, error::ErrorKind, multi::{separated_list1, separated_list0, many0}, sequence::{tuple}, branch::alt};
 
-trait Precedence{
-    fn get_binaryop_type(self)->Option<BinaryOp>;
-    fn is_right_to_left(self)->Option<bool>;
-    fn get_precedence(self)->usize;
-}
-use ReservedOp::*;
-impl Precedence for ReservedOp{
-    fn is_right_to_left(self)->Option<bool> {
-        if let BinaryOp::Cmp(_) = self.get_binaryop_type()?{
-            return None;
-        }
-        // Only power operator is r2l.
-        Some(self==Pow)
-    }
-    fn get_binaryop_type(self)->Option<BinaryOp> {
-        let x = match self{
-            Or=>BinaryOp::Or,
-            And=>BinaryOp::And,
-            BitOr=>BinaryOp::BitOr,
-            BitXor=>BinaryOp::BitXor,
-            BitAnd=>BinaryOp::BitAnd,
-            Eq=>BinaryOp::Cmp(CmpType::EQ),
-            NEq=>BinaryOp::Cmp(CmpType::NE),
-            Greater=>BinaryOp::Cmp(CmpType::GT),
-            GreaterEq=>BinaryOp::Cmp(CmpType::GE),
-            Less=>BinaryOp::Cmp(CmpType::LT),
-            LessEq=>BinaryOp::Cmp(CmpType::LE),
-            LShift=>BinaryOp::Shl,
-            RShift=>BinaryOp::Shr,
-            Plus=>BinaryOp::Add,
-            Minus=>BinaryOp::Sub,
-            Mult=>BinaryOp::Mul,
-            Div=>BinaryOp::Div,
-            Mod=>BinaryOp::Mod,
-            Pow=>BinaryOp::Pow,
-            _=>{return None;}
-        };
-        return Some(x);
-    }
-    fn get_precedence(self)->usize{
-        match self{
-            Colon=>13,
-            Or=>12,
-            And=>11,
-            BitOr=>10,
-            BitXor=>9,
-            BitAnd=>8,
-            Eq=>7, NEq=>7,
-            Greater=>6, Less=>6,
-            GreaterEq=>6, LessEq=>6,
-            RShift=>5, LShift=>5,
-            Plus=>4, Minus=>4,
-            Mult=>3, Div=>3, Mod=>3,
-            Pow=>2,
-            Not=>1,
-            LBrace=>0,
-            LBracket=>0,
-            _=>14,
-        }
-    }
-}
-use nom::{IResult, combinator::{verify, opt, map}, error::ErrorKind, multi::{separated_list1, separated_list0}, sequence::{delimited, tuple}};
-
-use super::{tokens::{TokenLoc, ReservedOp, Token, ReservedId}, ast::{LExpr, ExprNode, Expr, UnaryOp, Ident, Qualified, BinaryOp, CmpType}, location::Span};
+use super::{tokens::{TokenLoc, ReservedOp, Token, ReservedId}, ast::{LExpr, ExprNode, Expr, UnaryOp, Ident, Qualified, BinaryOp, CmpType, LAST, ASTNode, AST, LASTBlock, ASTBlock, VarDef, VarLexicalTy, VarLexicalTyType}, location::Span};
 
 #[derive(Debug)]
 pub enum ParseError<'s, 'a>{
+    // TODO: merge unexpected token for better error hint.
     UnexpectedToken(TokenLoc<'a>),
     UnexpectedEOF,
+    // TODO: map the error to the errors above.
     NomError(nom::error::ErrorKind, TokenStream<'s, 'a>)
 }
 
@@ -157,131 +79,16 @@ fn parse_qualified<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, Qualifie
 
 
 
-fn ok_expr<'s, 'a, E>(node: ExprNode<E>, pos: E)->Expr<E>{
-    Expr(Box::new(node), pos)
-}
-
-fn parse_argument_list<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, (Vec<LExpr>, Span)>{
-    map(tuple((reserved_op(LBrace), separated_list0(reserved_op(Comma), parse_expr), reserved_op(RBrace))), |tup|{
-        (tup.1, tup.0.1.span_over(tup.2.1))
-    })(s)
-}
-fn parse_array_subscript<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, (LExpr, Span)>{
-    map(tuple((reserved_op(LSquare),  parse_expr, reserved_op(RSquare))), |tup|{
-        (tup.1, tup.0.1.span_over(tup.2.1))
-    })(s)
+fn ok_ast<'s, 'a, E, T>(node: ASTNode<E, T>, pos: T)->AST<E, T>{
+    AST(Box::new(node), pos)
 }
 
 
 
-fn parse_atom<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LExpr>{
-    let (s, tok) = next(s0)?;
-    match tok.0{
-        Token::ReservedOp(LBrace) => {
-            let (s, expr) = parse_expr(s)?;
-            let (s, rparen) = reserved_op(RBrace)(s)?;
-            return Ok((s, ok_expr(ExprNode::Brace(expr), tok.1.span_over(rparen.1))));
-        }
-        Token::Real(x)=>{
-            return Ok((s, ok_expr(ExprNode::LitFloat(x), tok.1)));
-        },
-        Token::Imag(x)=>{
-            return Ok((s, ok_expr(ExprNode::LitImag(x), tok.1)));
-        }
-        Token::Natural(x)=>{
-            return Ok((s, ok_expr(ExprNode::LitInt(x), tok.1)));
-        }
-        Token::ReservedId(ReservedId::True)=>{
-            return Ok((s, ok_expr(ExprNode::LitBool(true), tok.1)));
-        }
-        Token::ReservedId(ReservedId::False)=>{
-            return Ok((s, ok_expr(ExprNode::LitBool(false), tok.1)));
-        }
-        
-
-        Token::Ident(_)=>{
-            // takes out a qualified ident
-            let (s, ident) = parse_qualified(s0).unwrap();
-            let span = ident.1;
-            let ident = ok_expr(ExprNode::Qualified(ident), span);
-            return Ok((s, ident));
-        }
-        _ => {
-            return Err(nom::Err::Error(ParseError::UnexpectedToken(tok)));
-        }
-    }
-}
 
 
 
-fn parse_level_0<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LExpr>{
-    let (mut s, mut base) = parse_atom(s0)?;
-    loop{
-        // Check if it is a function call.
-        let (s1, arglist) = opt(parse_argument_list)(s)?;
-        if let Some((args, loc)) = arglist{
-            s = s1;
-            let span = base.1.span_over(loc);
-            base = ok_expr(ExprNode::Call {
-                callee: base,
-                args: args
-            }, span);
-            continue;
-        }
-        // Check if it is a subscript.
-        let (s1, subscript) = opt(parse_array_subscript)(s)?;
-        if let Some((subscript, loc)) = subscript{
-            s = s1;
-            let span = base.1.span_over(loc);
-            base = ok_expr(ExprNode::Subscript {
-                base: base,
-                offset: subscript
-            }, span);
-            continue;
-        }
-        break;
-    }
-    return Ok((s, base))
-}
 
-fn parse_level_1<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LExpr>{
-    let (s, tok) = next(s0)?;
-    match tok.0{
-        Token::ReservedOp(Plus)=>{
-            let (s, sub) = parse_atom(s)?;
-            let span = tok.1.span_over(sub.1);
-            return Ok((s, ok_expr(ExprNode::Unary{
-                op: UnaryOp::Pos,
-                arg: sub
-            }, span)));
-        }
-        Token::ReservedOp(Minus)=>{
-            let (s, sub) = parse_atom(s)?;
-            let span = tok.1.span_over(sub.1);
-            return Ok((s, ok_expr(ExprNode::Unary{
-                op: UnaryOp::Neg,
-                arg: sub
-            }, span)));
-        }
-        Token::ReservedOp(Not)=>{
-            let (s, sub) = parse_atom(s)?;
-            let span = tok.1.span_over(sub.1);
-            return Ok((s, ok_expr(ExprNode::Unary{
-                op: UnaryOp::Not,
-                arg: sub
-            }, span)));
-        }
-        Token::ReservedId(ReservedId::Not)=>{
-            let (s, sub) = parse_atom(s)?;
-            let span = tok.1.span_over(sub.1);
-            return Ok((s, ok_expr(ExprNode::Unary{
-                op: UnaryOp::Not,
-                arg: sub
-            }, span)));
-        }
-        _ => parse_level_0(s0)
-    }
-}
 
 fn tok_binary_op<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, (BinaryOp, Option<bool>, usize)>{
     let (s, tok) = next(s0)?;
@@ -289,6 +96,13 @@ fn tok_binary_op<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, (BinaryOp
         if let Some(ty) = bop.get_binaryop_type(){
             return Ok((s, (ty, bop.is_right_to_left(), bop.get_precedence())))
         }
+    }
+    return unexpected_token(tok);
+}
+fn tok_natural<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, usize>{
+    let (s, tok) = next(s0)?;
+    if let Token::Natural(x) = tok.0{
+        return Ok((s, x as usize));
     }
     return unexpected_token(tok);
 }
@@ -355,17 +169,282 @@ fn parse_expr<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LExpr>{
     parse_level_13(s)
 }
 
+fn parse_statement<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
+    todo!();
+}
+
+fn parse_statement_block<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LASTBlock>{
+    map(tuple((reserved_op(LBrace),
+     many0(parse_statement),
+     reserved_op(RBrace))),  |(a, b, c)|{
+        ASTBlock(b, a.1.span_over(c.1))
+     })(s)
+}
+
+fn parse_statement_if<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
+    let (s, kw) = reserved_id(ReservedId::If)(s)?;
+    let (s, expr) = parse_expr(s)?;
+    let (s, then_block) = parse_statement_block(s)?;
+    let (s, kw_else) = opt(reserved_id(ReservedId::Else))(s)?;
+    let (s, else_block, end_span) = if kw_else.is_some(){
+        let (s, else_block) = parse_statement_block(s)?;
+        let end_span = else_block.1;
+        (s, Some(else_block), end_span)
+    }else{
+        (s, None, then_block.1)
+    };
+    let span = kw.1.span_over(end_span);
+    Ok((s, ok_ast(ASTNode::If { condition: expr, then_block: then_block, else_block: else_block }, span)))
+}
+
+fn parse_statement_while<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
+    let (s, kw) = reserved_id(ReservedId::While)(s)?;
+    let (s, expr) = parse_expr(s)?;
+    let (s, block) = parse_statement_block(s)?;
+    let span = kw.1.span_over(block.1);
+    Ok((s, ok_ast(ASTNode::While { condition: expr, body: block }, span)))
+}
+fn parse_statement_for<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
+    let (s, kw) = reserved_id(ReservedId::For)(s)?;
+    let (s, var) = parse_ident(s)?;
+    let (s, kw2) = reserved_id(ReservedId::In)(s)?;
+    let (s, exprRange) = parse_expr(s)?;
+    let (s, block) = parse_statement_block(s)?;
+    let span = kw.1.span_over(block.1);
+    Ok((s, ok_ast(ASTNode::For { var: var, range: exprRange, body: block }, span)))
+}
+
+// we fuse the two together since they both start with parse_expr.
+fn parse_statement_assign_and_expr<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
+    let (s, lhs) = parse_expr(s)?;
+    let (s, tok) = alt((reserved_op(Semicolon), reserved_op(Assign)))(s)?;
+    if let Token::ReservedOp(Assign) = tok.0{
+        let (s, rhs) = parse_expr(s)?;
+        let (s, tok2) = reserved_op(Semicolon)(s)?;
+        let span = lhs.1.span_over(tok2.1);
+        Ok((s, ok_ast(ASTNode::Assign { lhs, rhs }, span)))
+    }else{
+        let span = lhs.1.span_over(tok.1);
+        Ok((s, ok_ast(ASTNode::Expr(lhs), span)))
+    }
+}
+
+fn parse_statement_gatedef<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
+    let (s, tok_gatedef) = alt((
+        reserved_id(ReservedId::Defgate),
+        reserved_id(ReservedId::Gate)
+    ))(s)?;
+    let (s, name) = parse_ident(s)?;
+    let (s, tok_assign) = reserved_op(ReservedOp::Assign)(s)?;
+    let (s, mat_expr) = parse_expr(s)?;
+    let (s, tok_semicolon) = reserved_op(Semicolon)(s)?;
+    Ok((s, ok_ast(ASTNode::Gatedef { name, definition: mat_expr }, tok_gatedef.1.span_over(tok_semicolon.1))))    
+}
 
 
+/* 
+fn parse_statement_unitary<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
+
+}*/
+
+/* 
+We provide two ways for defining variables.
+The legacy way is C-styled definition, where types are placed before the variable name and array size after. Only singleton variable (w/o init value) and array definition are supported.
+
+int a;
+int b = 10;
+qbit c;
+int arr[20];
+
+The new way is let-binding, with explicit type or inferred type. We consider it more flexible since it writes type signature as a whole.
+
+let a : int;
+let b : int = 10;
+let b_infer = 10;
+let c : qbit;
+let arr1 : int[5] = [1,2,3,4,5];
+let arr2 = [1,2,3,4,5];
+let arr3 = [1,2,3,4,5];
+
+
+*/
+fn parse_cstyle_defvar_term<'s, 'a>(ty: VarLexicalTy<Span>, s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, (Ident<Span>, VarLexicalTy<Span>, Option<Expr<Span>>)>{
+    let (s, ident) = parse_ident(s)?;
+    let (after_lookahead, lookahead) = next(s)?;
+    match lookahead.0{
+        Token::ReservedOp(LSquare)=>{
+            let (s, size) = tok_natural(after_lookahead)?;
+            let (s, r_brace) = reserved_op(RSquare)(s)?;
+            let span = ident.1.span_over(r_brace.1);
+            Ok((s, (
+                ident,
+                VarLexicalTy(Box::new(VarLexicalTyType::Array(ty, size)), span),
+                None
+            )))
+        }
+        Token::ReservedOp(Assign)=>{
+            let (s, init_val) = parse_expr(after_lookahead)?;
+            let span = ident.1.span_over(init_val.1);
+            Ok((s, (
+                ident,
+                ty,
+                Some(init_val)
+            )))
+        }
+        _=>{
+            Ok((s, (ident, ty, None)))
+        }
+    }
+}
+fn parse_base_type<'s, 'a>(allow_qualified: bool, s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, VarLexicalTy<Span>>{
+    let base_type = |tok: ReservedId, ty: VarLexicalTyType<Span>| {
+        map(reserved_id(tok), move |s| VarLexicalTy(Box::new(ty.clone()), s.1))
+    };
+    let qualified_type = map(parse_qualified, |qident| {
+        let span = qident.1;
+        VarLexicalTy(Box::new(VarLexicalTyType::Named(qident)), span)
+    });
+    let mut builtin_types = alt(
+        (
+            base_type(ReservedId::Int, VarLexicalTyType::Int),
+            base_type(ReservedId::Qbit, VarLexicalTyType::Qbit),
+            base_type(ReservedId::Double,VarLexicalTyType::Double),
+            base_type(ReservedId::Bool,VarLexicalTyType::Boolean)
+        )
+    );
+    if allow_qualified{
+        alt((builtin_types, qualified_type))(s)
+    }else{
+        builtin_types(s)
+    }
+}
+
+
+
+fn parse_cstyle_defvar<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
+    let (s, base_type) = parse_base_type(false, s)?;
+    let (s, vars) = separated_list1(reserved_op(Comma), map(|s| parse_cstyle_defvar_term(base_type.clone(), s), |(a, b, c)|{
+        (VarDef{var: a, ty: Some(b)}, c)
+    }))(s)?;
+    let (s, tok) = reserved_op(Semicolon)(s)?;
+    let span = base_type.1.span_over(tok.1);
+    Ok((s, ok_ast(ASTNode::Defvar { definitions: vars }, span)))
+}
+
+fn parse_reference_header<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, TokenLoc<'a>>{
+    reserved_op(BitAnd)(s)
+    // TODO: parse lifetime annotation?
+}
+
+// &[T] or &[T;N] by lookahead
+// Note that currently we only allow &[T] as a whole instead of introducing entire DST mechanism.
+fn parse_slice_type_or_refarray<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, VarLexicalTy<Span>>{
+    let (s, tok_ref) =  parse_reference_header(s)?;
+    let (s, tok_lsquare) = reserved_op(LSquare)(s)?;
+    let (s, ty) = parse_full_type(s)?;
+    let (s, tok) = next(s)?;
+    match tok.0{
+        Token::ReservedOp(RSquare)=>{
+            // &[T]
+            Ok((s, VarLexicalTy(Box::new(VarLexicalTyType::Slice(ty)), tok_ref.1.span_over(tok_ref.1.span_over(tok.1)))))
+        }
+        Token::ReservedOp(Semicolon)=>{
+            // &[T;N]
+            let (s, size) = tok_natural(s)?;
+            let (s, tok) = reserved_op(RSquare)(s)?;
+            Ok((s, VarLexicalTy(Box::new(VarLexicalTyType::Ref(
+                VarLexicalTy(Box::new(VarLexicalTyType::Array(ty, size)), tok_lsquare.1.span_over(tok.1))
+            )), tok_ref.1.span_over(tok_ref.1.span_over(tok.1)))))
+        }
+        _ => return unexpected_token(tok)
+    }
+    
+}
+// &T
+fn parse_reference_type<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, VarLexicalTy<Span>>{
+    let (s, tok_ref) =  parse_reference_header(s)?;
+    let (s, ty) = parse_full_type(s)?;
+    let span_end = ty.1;
+    Ok((s, VarLexicalTy(Box::new(VarLexicalTyType::Ref(
+       ty
+    )), tok_ref.1.span_over(tok_ref.1.span_over(span_end)))
+    ))
+}
+// &&T. Backdoor for current terrible tokenizer.
+fn parse_reference_type_doubleref<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, VarLexicalTy<Span>>{
+    let (s, tok_doubleref) =  reserved_op(And)(s)?;
+    let (s, ty) = parse_full_type(s)?;
+    let span_end = ty.1;
+    let outer_span = tok_doubleref.1.span_over(tok_doubleref.1.span_over(span_end));
+    let inner_span = Span{
+        byte_offset: outer_span.byte_offset+1,
+        byte_len: outer_span.byte_len-1
+    };
+    let inner_ref = VarLexicalTy(Box::new(VarLexicalTyType::Ref(
+        ty
+     )), outer_span);
+    let outer_ref = VarLexicalTy(Box::new(VarLexicalTyType::Ref(
+        inner_ref
+     )), inner_span);
+    Ok((s, outer_ref))
+}
+// [T; N]
+fn parse_array_type<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, VarLexicalTy<Span>>{
+    let (s, tok_lsquare) = reserved_op(LSquare)(s)?;
+    let (s, ty) = parse_full_type(s)?;
+    let (s, semicolon) = reserved_op(Semicolon)(s)?;
+    let (s, size) = tok_natural(s)?;
+    let (s, tok_rsquare) = reserved_op(RSquare)(s)?;
+    Ok((s, 
+        VarLexicalTy(Box::new(VarLexicalTyType::Array(ty, size)), tok_lsquare.1.span_over(tok_rsquare.1))
+    ))
+}
+fn parse_unit_type<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, VarLexicalTy<Span>>{
+    let (s, tok_lparen) = reserved_op(LParen)(s)?;
+    let (s, tok_rparen) = reserved_op(RParen)(s)?;
+    Ok((s, 
+        VarLexicalTy(Box::new(VarLexicalTyType::Unit), tok_lparen.1.span_over(tok_rparen.1))
+    ))
+}
+
+fn parse_full_type<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, VarLexicalTy<Span>>{
+    alt((
+        parse_reference_type_doubleref,
+        parse_slice_type_or_refarray,
+        parse_reference_type,
+        parse_array_type,
+        |s| parse_base_type(true, s)
+    ))(s)
+}
+
+fn parse_let_defvar_type<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, VarLexicalTy<Span>>{
+    let (s, tok) = reserved_op(Colon)(s)?;
+    parse_full_type(s)
+}
+fn parse_let_initval<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, Expr<Span>>{
+    let (s, tok) = reserved_op(Assign)(s)?;
+    parse_expr(s)
+}
+
+fn parse_let_defvar<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
+    let (s, tok) = reserved_id(ReservedId::Let)(s)?;
+    let (s, ident) = parse_ident(s)?;
+    let (s, type_annotation) = opt(parse_let_defvar_type)(s)?;
+    let (s, initval) = opt(parse_let_initval)(s)?;
+    let (s, tok_semicolon) = reserved_op(Semicolon)(s)?;
+    Ok((s, ok_ast(ASTNode::Defvar { definitions: vec![
+        (VarDef{var: ident, ty: type_annotation}, initval)
+    ] }, tok.1.span_over(tok_semicolon.1))))
+}
 
 
 #[cfg(test)]
 mod tests{
     use nom::combinator::all_consuming;
 
-    use crate::lang::{ast::LExpr, tokenizer::tokenizer, tokens::TokenLoc};
+    use crate::lang::{ast::{LExpr, VarLexicalTy}, tokenizer::tokenizer, tokens::TokenLoc, location::Span};
 
-    use super::parse_expr;
+    use super::{parse_expr, parse_full_type};
 
     fn tokenize<'a>(expr: &'a str)->Vec<TokenLoc<'a>>{
         tokenizer(expr).unwrap().1
@@ -375,12 +454,21 @@ mod tests{
         let s = all_consuming(parse_expr)(&tokens).unwrap().1;
         s
     }
+    fn test_parse_type(expr: &str)->VarLexicalTy<Span>{
+        let tokens = tokenize(expr);
+        let s = all_consuming(parse_full_type)(&tokens).unwrap().1;
+        s
+    }
 
     #[test]
     fn test_expr(){
         println!("{:?}", test_parse_expr("1+2+3+2*4++1--2**2*(1+foo(bar, 12+34+arr[1](arr, arr)[baz]))"));
         println!("{:?}", test_parse_expr("(f(x(x)))(f(x(x)))"));
     }
-
+    #[test]
+    fn test_type(){
+        println!("{:?}", test_parse_type("&&[&[qbit]; 10]"));
+        println!("{:?}", test_parse_type("&&[&[int; 10]; 10]"));
+    }
 }
 

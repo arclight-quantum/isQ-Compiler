@@ -37,9 +37,6 @@ pub enum ReservedId {
     Deriving,
     Oracle,
     To,
-    And,
-    Or,
-    Not,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReservedOp {
@@ -67,8 +64,8 @@ pub enum ReservedOp {
     Comma,
     LBrace,
     RBrace,
-    LBracket,
-    RBracket,
+    LParen,
+    RParen,
     LSquare,
     RSquare,
     Dot,
@@ -79,6 +76,9 @@ pub enum ReservedOp {
     Range,
     Scope,
     Quote,
+    AndWord,
+    OrWord,
+    NotWord,
 }
 
 #[derive(Debug, Clone, Copy)]

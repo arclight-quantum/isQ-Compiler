@@ -166,11 +166,12 @@ reservedId!(token_gate, "gate", ReservedId::Gate);
 reservedId!(token_deriving, "deriving", ReservedId::Deriving);
 reservedId!(token_oracle, "oracle", ReservedId::Oracle);
 reservedId!(token_to, "to", ReservedId::To);
-reservedId!(token_and, "and", ReservedId::And);
-reservedId!(token_or, "or", ReservedId::Or);
-reservedId!(token_not, "not", ReservedId::Not);
 
 
+
+reservedOp!(token_and_word, "and", ReservedOp::AndWord);
+reservedOp!(token_or_word, "or", ReservedOp::OrWord);
+reservedOp!(token_not_word, "not", ReservedOp::NotWord);
 reservedOp!(token_ket0, "|0>", ReservedOp::Ket0);
 reservedOp!(token_eq, "==", ReservedOp::Eq);
 reservedOp!(token_assign, "=", ReservedOp::Assign);
@@ -193,10 +194,10 @@ reservedOp!(token_bitxor, "^", ReservedOp::BitXor);
 reservedOp!(token_rshift, ">>", ReservedOp::RShift);
 reservedOp!(token_lshift, "<<", ReservedOp::LShift);
 reservedOp!(token_comma, ",", ReservedOp::Comma);
-reservedOp!(token_lbrace, "(", ReservedOp::LBrace);
-reservedOp!(token_rbrace, ")", ReservedOp::RBrace);
-reservedOp!(token_lbracket, "{", ReservedOp::LBracket);
-reservedOp!(token_rbracket, "}", ReservedOp::RBracket);
+reservedOp!(token_lbrace, "(", ReservedOp::LParen);
+reservedOp!(token_rbrace, ")", ReservedOp::RParen);
+reservedOp!(token_lbracket, "{", ReservedOp::LBrace);
+reservedOp!(token_rbracket, "}", ReservedOp::RBrace);
 reservedOp!(token_lsquare, "[", ReservedOp::LSquare);
 reservedOp!(token_rsquare, "]", ReservedOp::RSquare);
 reservedOp!(token_dot, ".", ReservedOp::Dot);
@@ -247,9 +248,6 @@ fn token_reserved<'a>(s: NomSpan<'a>)->IResult<NomSpan<'a>, TokenLoc<'a>>{
             token_deriving,
             token_oracle,
             token_to,
-            token_and,
-            token_or,
-            token_not,
         )), alt((
             // Multi-character operators.
             token_ket0,
@@ -266,6 +264,9 @@ fn token_reserved<'a>(s: NomSpan<'a>)->IResult<NomSpan<'a>, TokenLoc<'a>>{
             token_op_and,
             token_op_or,
             token_op_not,
+            token_and_word,
+            token_or_word,
+            token_not_word,
         )), alt((
             // Single-character operators.
             token_plus,
