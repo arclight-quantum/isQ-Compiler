@@ -24,6 +24,11 @@ trait Precedence{
     fn get_precedence(self)->usize;
 }
 use ReservedOp::*;
+use nom::{combinator::*, sequence::*};
+
+use crate::lang::{ast::{BinaryOp, CmpType, ExprNode, Expr}, tokens::ReservedOp};
+
+use super::*;
 impl Precedence for ReservedOp{
     fn is_right_to_left(self)->Option<bool> {
         if let BinaryOp::Cmp(_) = self.get_binaryop_type()?{
@@ -80,6 +85,16 @@ impl Precedence for ReservedOp{
             _=>14,
         }
     }
+}
+
+fn tok_binary_op<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, (BinaryOp, Option<bool>, usize)>{
+    let (s, tok) = next(s0)?;
+    if let Token::ReservedOp(bop) = tok.0{
+        if let Some(ty) = bop.get_binaryop_type(){
+            return Ok((s, (ty, bop.is_right_to_left(), bop.get_precedence())))
+        }
+    }
+    return unexpected_token(tok);
 }
 
 fn ok_expr<'s, 'a, E>(node: ExprNode<E>, pos: E)->Expr<E>{
@@ -233,4 +248,67 @@ fn parse_level_1<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LExpr>{
         }
         _ => parse_level_0(s0)
     }
+}
+
+
+
+// for the rest levels, use precedence climbing.
+fn parse_level_2_to_12<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LExpr>{
+    fn go<'s, 'a>(mut base: LExpr, max_precedence: usize, s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LExpr>{
+        let (mut s, mut lookahead) = opt(tok_binary_op)(s0)?;
+        while let Some((ty0, _r2l0, prec0)) = lookahead{
+            if prec0>max_precedence {
+                break;
+            }
+            let (s2, mut term) = parse_level_1(s)?;
+            s = s2;
+            // s2 is after-lookahead.
+            let mut s2;
+            (s2, lookahead) = opt(tok_binary_op)(s)?;
+            while let Some(dprec) = {
+                if let Some ((_ty, r2l, prec)) = lookahead{
+                    if prec<prec0{
+                        Some(1)
+                    }else if prec == prec0 && r2l==Some(true){
+                        Some(0)
+                    }else{
+                        None
+                    }
+                }else{
+                    None
+                }
+            } {
+                (s, term) = go(term, prec0 - dprec, s)?;
+                (s2, lookahead) = opt(tok_binary_op)(s)?;
+            }
+            s = s2;
+            let span = base.1.span_over(term.1);
+            base = ok_expr(ExprNode::Binary { op: ty0, lhs: base, rhs: term }, span);
+        }
+        Ok((s, base))
+    }
+    let (s, term) = parse_level_1(s0)?;
+    go(term, 12, s)
+}
+
+// Only for range operator
+fn parse_level_13<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LExpr>{
+    let (s, t1) = opt(parse_level_2_to_12)(s0)?;
+    let (s, c1) = opt(reserved_op(Colon))(s)?;
+    if c1.is_none() && t1.is_some() {return Ok((s, t1.unwrap()));};
+    if c1.is_none(){
+        let (_, tok) = next(s0)?;
+        return unexpected_token(tok);
+    }
+    let c1 = c1.unwrap();
+    let (s, t2) = opt(parse_level_2_to_12)(s)?;
+    let (s, c2) = reserved_op(Colon)(s)?;
+    let (s, t3) = opt(parse_level_2_to_12)(s)?;
+    let start = if let Some(x)=&t1 {x.1} else {c1.1};
+    let end = if let Some(x) = &t3 {x.1} else {c2.1};
+    Ok((s, ok_expr(ExprNode::Range { lo: t1, hi: t2, step: t3 }, start.span_over(end))))
+}
+
+pub fn parse_expr<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LExpr>{
+    parse_level_13(s)
 }
