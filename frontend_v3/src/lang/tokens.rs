@@ -37,6 +37,7 @@ pub enum ReservedId {
     Deriving,
     Oracle,
     To,
+    From
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReservedOp {

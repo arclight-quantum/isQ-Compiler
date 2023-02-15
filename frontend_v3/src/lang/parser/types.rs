@@ -83,6 +83,7 @@ pub fn parse_full_type<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, VarL
         parse_slice_type_or_refarray,
         parse_reference_type,
         parse_array_type,
+        parse_unit_type,
         |s| parse_base_type(true, s)
     ))(s)
 }

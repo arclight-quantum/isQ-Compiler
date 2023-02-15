@@ -36,8 +36,6 @@ impl Precedence for ReservedOp{
     fn get_binaryop_type(self)->Option<BinaryOp> {
         let x = match self{
             Or=>BinaryOp::Or,
-            OrWord=>BinaryOp::Or,
-            AndWord=>BinaryOp::And,
             And=>BinaryOp::And,
             BitOr=>BinaryOp::BitOr,
             BitXor=>BinaryOp::BitXor,
@@ -64,7 +62,9 @@ impl Precedence for ReservedOp{
         match self{
             Colon=>13,
             Or=>12,
+            OrWord=>12,
             And=>11,
+            AndWord=>11,
             BitOr=>10,
             BitXor=>9,
             BitAnd=>8,
@@ -290,18 +290,34 @@ fn parse_level_2_to_12<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LEx
 // Only for range operator
 fn parse_level_13<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LExpr>{
     let (s, t1) = opt(parse_level_2_to_12)(s0)?;
-    let (s, c1) = opt(reserved_op(Colon))(s)?;
+    let (s, c1) = opt(alt((
+        map( reserved_op(Colon), |x| {(1, x.1)}),
+        // Hack for supporting full-range
+        map( reserved_op(Scope), |x| {(2, x.1)})
+    )))(s)?;
     if c1.is_none() && t1.is_some() {return Ok((s, t1.unwrap()));};
     if c1.is_none(){
         let (_, tok) = next(s0)?;
         return unexpected_token(tok);
     }
     let c1 = c1.unwrap();
-    let (s, t2) = opt(parse_level_2_to_12)(s)?;
-    let (s, c2) = reserved_op(Colon)(s)?;
-    let (s, t3) = opt(parse_level_2_to_12)(s)?;
+    let (s, t2, t3) = if c1.0==1{
+        let (s, t2) = opt(parse_level_2_to_12)(s)?;
+        let (s, t3) = opt(preceded(reserved_op(Colon), parse_level_2_to_12))(s)?;
+        (s, t2, t3)
+    }else{
+        let (s, t3) = parse_level_2_to_12(s)?;
+        (s, None, Some(t3))
+    };
+
     let start = if let Some(x)=&t1 {x.1} else {c1.1};
-    let end = if let Some(x) = &t3 {x.1} else {c2.1};
+    let end = if let Some(x) = &t3 {x.1} else {
+        if let Some(e2) = &t2{
+            e2.1
+        }else{
+            c1.1
+        }
+    };
     Ok((s, ok_expr(ExprNode::Range { lo: t1, hi: t2, step: t3 }, start.span_over(end))))
 }
 

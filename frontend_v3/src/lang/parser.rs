@@ -22,6 +22,7 @@ pub enum ParseError<'s, 'a>{
     // TODO: merge unexpected token for better error hint.
     UnexpectedToken(TokenLoc<'a>),
     UnexpectedEOF,
+    UnitaryOpExpectCallExpr(Span),
     // TODO: map the error to the errors above.
     NomError(nom::error::ErrorKind, TokenStream<'s, 'a>)
 }
@@ -75,6 +76,10 @@ fn unexpected_token<'s, 'a, T>(tok: TokenLoc<'a>)->ParseResult<'s, 'a, T>{
     return Err(nom::Err::Error(ParseError::UnexpectedToken(tok)));
 }
 
+fn unitary_op_expect_call_expr<'s, 'a, T>(span: Span)->ParseResult<'s, 'a, T>{
+    return Err(nom::Err::Error(ParseError::UnitaryOpExpectCallExpr(span)));
+}
+
 fn parse_ident<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, Ident<Span>>{
     let (s, tok) = next(s)?;
     if let Token::Ident(id) = tok.0{
@@ -111,8 +116,19 @@ mod tests{
     use nom::combinator::all_consuming;
 
     use crate::lang::{tokens::TokenLoc, tokenizer::tokenizer};
+
+    use super::{TokenStream, ParseResult};
     pub fn tokenize<'a>(expr: &'a str)->Vec<TokenLoc<'a>>{
         tokenizer(expr).unwrap().1
+    }
+    pub fn test_parser<T>(parser: for<'s, 'a> fn(TokenStream<'s, 'a>)->ParseResult<'s, 'a, T>)->impl for<'r> Fn(&'r str)->T{
+        move |st| {
+            let mut p = parser;
+            let tokens = tokenize(st);
+            let ret = all_consuming(&mut p)(&tokens).unwrap().1;
+            ret
+        }
+        
     }
 }
 

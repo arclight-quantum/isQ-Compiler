@@ -1,6 +1,6 @@
 // isQ tokenizer written in Nom.
 use super::{tokens::*, location::Span};
-use nom::{combinator::*, IResult, bytes::complete::{tag, take_until}, branch::alt, character::complete::{char, anychar, u64, alphanumeric0, newline, multispace0}, error::{ErrorKind, make_error, Error}, number::complete::double, sequence::pair, multi::{many_till, many0}};
+use nom::{combinator::*, IResult, bytes::complete::{tag, take_until}, branch::alt, character::complete::{char, anychar, u64, alphanumeric0, newline, multispace0, satisfy}, error::{ErrorKind, make_error, Error}, number::complete::double, sequence::pair, multi::{many_till, many0, many1}, AsChar};
 use std::cell::Cell;
 use nom_locate::{LocatedSpan, position};
 
@@ -59,10 +59,17 @@ fn token_comment_block<'a>(s: NomSpan<'a>)->IResult<NomSpan<'a>, TokenLoc<'a>>{
 
 // Identifier.
 
+fn ident_head_char(chr: char)->bool{
+    chr.is_alpha() || chr=='_'
+}
+fn ident_tail_char(chr: char)->bool{
+    chr.is_alphanum() || chr=='_'
+}
+
 fn token_identifier<'a>(s: NomSpan<'a>)->IResult<NomSpan<'a>, TokenLoc<'a>>{
     map(recognize(pair(
-        verify(anychar, |c| c.is_lowercase()),
-        alphanumeric0
+        satisfy(ident_head_char),
+        many0(satisfy(ident_tail_char))
     )), |v: NomSpan|{
         TokenLoc(Token::Ident(v.fragment()), v.into())
     })(s)
@@ -107,18 +114,29 @@ fn token_number<'a>(s: NomSpan<'a>)->IResult<NomSpan<'a>, TokenLoc<'a>>{
 }
 
 
-
 // Macros for creating reserved tokens.
 macro_rules! reservedId {
     ($name: tt, $tag: expr, $ret: expr) => {
         fn $name<'a>(s: NomSpan<'a>)->IResult<NomSpan<'a>, TokenLoc<'a>>{
             let (s, tok) = tag($tag)(s)?;
+            // the next character must not be part of ident.
+            not(satisfy(ident_tail_char))(s)?;
             Ok((s, 
                 TokenLoc(Token::ReservedId($ret), tok.into())
             ))
         }
     };
+    ($name: tt, $tag: expr, $ret: expr, op) => {
+        fn $name<'a>(s: NomSpan<'a>)->IResult<NomSpan<'a>, TokenLoc<'a>>{
+            let (s, tok) = tag($tag)(s)?;
+            not(satisfy(ident_tail_char))(s)?;
+            Ok((s, 
+                TokenLoc(Token::ReservedOp($ret), tok.into())
+            ))
+        }
+    };
 }
+
 macro_rules! reservedOp {
     ($name: tt, $tag: expr, $ret: expr) => {
         fn $name<'a>(s: NomSpan<'a>)->IResult<NomSpan<'a>, TokenLoc<'a>>{
@@ -166,12 +184,11 @@ reservedId!(token_gate, "gate", ReservedId::Gate);
 reservedId!(token_deriving, "deriving", ReservedId::Deriving);
 reservedId!(token_oracle, "oracle", ReservedId::Oracle);
 reservedId!(token_to, "to", ReservedId::To);
+reservedId!(token_from, "from", ReservedId::From);
+reservedId!(token_and_word, "and", ReservedOp::AndWord, op);
+reservedId!(token_or_word, "or", ReservedOp::OrWord, op);
+reservedId!(token_not_word, "not", ReservedOp::NotWord, op);
 
-
-
-reservedOp!(token_and_word, "and", ReservedOp::AndWord);
-reservedOp!(token_or_word, "or", ReservedOp::OrWord);
-reservedOp!(token_not_word, "not", ReservedOp::NotWord);
 reservedOp!(token_ket0, "|0>", ReservedOp::Ket0);
 reservedOp!(token_eq, "==", ReservedOp::Eq);
 reservedOp!(token_assign, "=", ReservedOp::Assign);
@@ -248,6 +265,7 @@ fn token_reserved<'a>(s: NomSpan<'a>)->IResult<NomSpan<'a>, TokenLoc<'a>>{
             token_deriving,
             token_oracle,
             token_to,
+            token_from,
         )), alt((
             // Multi-character operators.
             token_ket0,

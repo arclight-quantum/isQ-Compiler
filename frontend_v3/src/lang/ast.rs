@@ -26,7 +26,7 @@ pub enum GateModifierType{
 }
 
 #[derive(Debug, Clone)]
-pub struct GateModifier<T>(GateModifierType, pub T);
+pub struct GateModifier<T>(pub GateModifierType, pub T);
 
 #[derive(Debug, Clone)]
 pub enum ExprNode<E>{
@@ -100,6 +100,11 @@ pub enum VarLexicalTyType<T>{
 #[derive(Debug, Clone)]
 pub struct VarLexicalTy<T>(pub Box<VarLexicalTyType<T>>, pub T);
 
+impl<T> VarLexicalTy<T>{
+    pub fn unit(span: T)->Self{
+        Self(Box::new(VarLexicalTyType::Unit), span)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct VarDef<T>{
@@ -112,11 +117,38 @@ pub enum DerivingClauseType{
     Gate, Oracle
 }
 #[derive(Debug, Clone)]
-pub struct DerivingClause<T>(DerivingClauseType, pub T);
+pub struct DerivingClause<T>(pub DerivingClauseType, pub T);
 
 #[derive(Debug, Clone)]
 pub struct ASTBlock<E, T>(pub Vec<AST<E, T>>, pub T);
 
+
+#[derive(Debug, Clone)]
+pub enum ImportEntryType<T>{
+    Single(Qualified<T>, Option<Ident<T>>),
+    Tree(Option<Qualified<T>>, Vec<ImportEntry<T>>),
+    All(Option<Qualified<T>>)
+}
+#[derive(Debug, Clone)]
+pub struct ImportEntry<T>(pub ImportEntryType<T>, pub T);
+impl<T> ImportEntry<T>{
+    pub fn single(q: Qualified<T>, alias: Option<Ident<T>>, annotation: T)->Self{
+        Self(ImportEntryType::Single(q, alias), annotation)
+    }
+    pub fn tree(base: Option<Qualified<T>>, list: Vec<ImportEntry<T>>, annotation: T)->Self{
+        Self(ImportEntryType::Tree(base, list), annotation)
+    }
+    pub fn all(name: Option<Qualified<T>>, annotation: T)->Self{
+        Self(ImportEntryType::All(name), annotation)
+    }
+    pub fn set_tree_root(&mut self, base: Qualified<T>){
+        if let ImportEntryType::Tree(a, b)= &mut self.0{
+            *a = Some(base);
+        }else{
+            unreachable!();
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum ASTNode<E, T>{
@@ -148,17 +180,18 @@ pub enum ASTNode<E, T>{
         definition: Expr<E>
     },
     Unitary {
-        modifiers: GateModifier<T>,
+        modifiers: Vec<GateModifier<T>>,
         call: Expr<E>
     },
     Package(Qualified<T>),
-    Import(Qualified<T>),
+    Import(ImportEntry<T>),
     Procedure{
         name: Ident<T>,
         args: Vec<VarDef<T>>,
+        body: ASTBlock<E, T>,
         deriving_clauses: Vec<DerivingClause<T>>
     },
-    Pass, Return , Continue, Break
+    Pass, Return(Option<Expr<E>>), Continue, Break, Empty
 }
 
 #[derive(Debug, Clone)]
