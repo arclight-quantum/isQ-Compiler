@@ -99,12 +99,17 @@ void ISQDialect::printType(::mlir::Type type,
 
 mlir::Attribute ISQDialect::parseAttribute(::mlir::DialectAsmParser &parser,
                                            ::mlir::Type type) const {
+    /*
     mlir::StringRef kw;
     auto kwLoc = parser.getCurrentLocation();
     if (parser.parseKeyword(&kw)) {
         parser.emitError(kwLoc, "unrecognized attribute");
         return nullptr;
     }
+    mlir::Attribute attr;
+    */
+    auto kwLoc = parser.getCurrentLocation();
+    mlir::StringRef kw;
     mlir::Attribute attr;
     auto ret = generatedAttributeParser(parser, &kw, type, attr);
     if (!ret.hasValue()) {

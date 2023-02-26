@@ -84,7 +84,7 @@ mlir::LogicalResult DeclareQOpOp::parseIR(::mlir::OpAsmParser &parser,
 }
 void DeclareQOpOp::printIR(::mlir::OpAsmPrinter &p) {
     //p << "isq.declare_qop";
-    //p << ' ';
+    p << ' ';
     p.printSymbolName(sym_nameAttr().getValue());
     p.printOptionalAttrDict(
         (*this)->getAttrs(),

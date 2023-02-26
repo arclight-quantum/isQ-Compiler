@@ -20,10 +20,8 @@ namespace ir {
             }
         }
         assert(col!=-1 && "A matrix must not be empty!");
-        llvm::outs()<<"Parsed matrix." << size<<" "<<col<<"\n";
         auto shape = mlir::RankedTensorType::get({(long)size, col}, mlir::ComplexType::get(mlir::Float64Type::get(ctx)));
         auto mat = DenseComplexF64MatrixAttr::get(ctx, mlir::DenseElementsAttr::get(shape, body));
-        mat.dump();
         return mat;
     }
 
@@ -32,14 +30,14 @@ namespace ir {
         auto n_rows = shape.getShape()[0];
         auto n_cols = shape.getShape()[1];
 
-        auto buf  = this->getBody().getValues<llvm::APFloat>();
+        auto buf  = this->getBody().getValues<std::complex<llvm::APFloat>>();
         auto id = buf.begin();
         MatrixVal val;
         for(auto i=0; i<n_rows; i++){
             llvm::SmallVector<std::complex<double>> row;
             for(auto j=0; j<n_cols; j++){
                 auto v = *id;
-                row.push_back(v.convertToDouble());
+                row.push_back(std::complex(v.real().convertToDouble(), v.imag().convertToDouble()));
                 id++;
             }
             val.push_back(std::move(row));

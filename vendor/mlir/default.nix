@@ -22,7 +22,5 @@ stdenv.mkDerivation {
     "-DCMAKE_CXX_COMPILER=clang++"
     "-DLLVM_ENABLE_LLD=ON"
   ];
-  separateDebugInfo = true;
-  dontStrip = true;
   cmakeDir = "../llvm";
 }

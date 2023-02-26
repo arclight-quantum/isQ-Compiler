@@ -190,7 +190,7 @@
       },
       "locked": {
         "lastModified": 1,
-        "narHash": "sha256-e3XD6hKFibjxLuh6y5rCAfeQFrvOQA813sgkISctBdo=",
+        "narHash": "sha256-c4gUBku+tpsIt6/Aq9PR5jisAVnp7yKmOJDZOtIxKQs=",
         "path": "../vendor",
         "type": "path"
       },
