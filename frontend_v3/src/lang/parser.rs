@@ -109,7 +109,7 @@ fn tok_natural<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, usize>{
     return unexpected_token(tok);
 }
 
-
+pub use statement::parse_toplevel_statement;
 
 #[cfg(test)]
 mod tests{

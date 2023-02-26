@@ -1,7 +1,7 @@
 #include <mlir/IR/PatternMatch.h>
 #include <mlir/IR/Value.h>
 #include <mlir/Support/LLVM.h>
-#include <mlir/Dialect/SCF/SCF.h>
+#include <mlir/Dialect/SCF/IR/SCF.h>
 #include <isq/passes/Mem2Reg.h>
 namespace isq::ir::passes{
 
@@ -64,7 +64,7 @@ void Mem2RegRewrite::mem2regBlock(mlir::TypeRange types, mlir::Block* block, mli
                 }
                 mlir::OperationState state(last->getLoc(), last->getName(), allArgs, last->getResultTypes(), last->getAttrs(), last->getSuccessors(), {});
                 rewriter.setInsertionPointAfter(last);
-                rewriter.createOperation(state);
+                rewriter.create(state);
                 rewriter.eraseOp(last);
             }while(0);
         }else if(auto new_op = llvm::dyn_cast<mlir::scf::IfOp>(op)){

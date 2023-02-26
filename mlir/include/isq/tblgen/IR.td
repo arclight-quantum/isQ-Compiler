@@ -3,6 +3,7 @@ include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/BuiltinAttributes.td"
 include "mlir/IR/SymbolInterfaces.td"
+include "mlir/IR/EnumAttr.td"
 include "mlir/IR/BuiltinTypeInterfaces.td"
 //include "mlir/Dialect/Shape/IR/ShapeBase.td"
 
@@ -13,11 +14,13 @@ include "mlir/IR/BuiltinTypeInterfaces.td"
 def ISQ_Dialect: Dialect{
     let name = "isq";
     let cppNamespace = "::isq::ir";
-    let summary = "ISQ Quantum MLIR Dialect.";
+    let summary = "isQ-IR Dialect.";
     let description = [{
         MLIR Dialect for expressing and optimization ranging from low-level quantum circuits, to high level quantum programs with complicated control structures.
     }];
-    let dependentDialects = ["::mlir::memref::MemRefDialect", "::mlir::AffineDialect", "::mlir::arith::ArithmeticDialect", "::mlir::scf::SCFDialect", "::mlir::LLVM::LLVMDialect"];
+    let dependentDialects = ["::mlir::memref::MemRefDialect", "::mlir::AffineDialect", "::mlir::arith::ArithmeticDialect", "::mlir::scf::SCFDialect", "::mlir::LLVM::LLVMDialect",
+    "::mlir::func::FuncDialect", "::mlir::cf::ControlFlowDialect",
+    "::mlir::complex::ComplexDialect"];
     let hasCanonicalizer = 1;
     let useDefaultTypePrinterParser = 0;
     let useDefaultAttributePrinterParser = 0;
@@ -62,7 +65,8 @@ def ISQ_QState : TypeDef<ISQ_Dialect, "QState", [MemRefElementTypeInterface]>{
     }];
     let summary = [{Qubit state}];
     let mnemonic = "qstate";
-
+    let hasCustomAssemblyFormat = 1;
+    /*
     let printer = [{
         QStateParsePrint p;
         p.printType(*this, $_printer);
@@ -71,6 +75,7 @@ def ISQ_QState : TypeDef<ISQ_Dialect, "QState", [MemRefElementTypeInterface]>{
         QStateParsePrint p;
         return p.parseType($_parser);
     }];
+    */
 }
 def ISQ_Gate : TypeDef<ISQ_Dialect, "Gate", [MemRefElementTypeInterface]>{
     let description = [{
@@ -91,6 +96,8 @@ def ISQ_Gate : TypeDef<ISQ_Dialect, "Gate", [MemRefElementTypeInterface]>{
     let parameters = (ins "int64_t":$size,"GateTrait":$hints);
     let summary = [{Gate reference}];
     let mnemonic = "gate";
+    let hasCustomAssemblyFormat = 1;
+    /*
     let printer = [{
         GateParsePrint p;
         p.printType(*this, $_printer);
@@ -99,6 +106,7 @@ def ISQ_Gate : TypeDef<ISQ_Dialect, "Gate", [MemRefElementTypeInterface]>{
         GateParsePrint p;
         return p.parseType($_parser);
     }];
+    */
     let extraClassDeclaration = [{
         ::mlir::SmallVector<mlir::Type> getApplyParameterType(GateType ty);
     }];
@@ -109,7 +117,8 @@ def ISQ_QIRQubit : TypeDef<ISQ_Dialect, "QIRQubit", [MemRefElementTypeInterface]
     }];
     let summary = [{QIR Opaque Qubit value.}];
     let mnemonic = "qir.qubit";
-
+    let hasCustomAssemblyFormat = 1;
+    /*
     let printer = [{
         QIRQubitParsePrint p;
         p.printType(*this, $_printer);
@@ -118,6 +127,7 @@ def ISQ_QIRQubit : TypeDef<ISQ_Dialect, "QIRQubit", [MemRefElementTypeInterface]
         QIRQubitParsePrint p;
         return p.parseType($_parser);
     }];
+    */
 }
 def ISQ_QIRResult : TypeDef<ISQ_Dialect, "QIRResult", [MemRefElementTypeInterface]>{
     let description = [{
@@ -125,7 +135,8 @@ def ISQ_QIRResult : TypeDef<ISQ_Dialect, "QIRResult", [MemRefElementTypeInterfac
     }];
     let summary = [{QIR Opaque measurement result value.}];
     let mnemonic = "qir.result";
-
+    let hasCustomAssemblyFormat = 1;
+    /*
     let printer = [{
         QIRResultParsePrint p;
         p.printType(*this, $_printer);
@@ -134,6 +145,7 @@ def ISQ_QIRResult : TypeDef<ISQ_Dialect, "QIRResult", [MemRefElementTypeInterfac
         QIRResultParsePrint p;
         return p.parseType($_parser);
     }];
+    */
 }
 /*
 def ISQ_QOp: DialectType<ISQ_Dialect, CPred<"$_self.isa<::isq::ir::QOpType>()">, "General quantum operation type">{
@@ -160,43 +172,50 @@ def FuncTypeAttr: TypeAttrBase<"::mlir::FunctionType", "Function type attribute,
 
 // Gate traits
 
-def GateTraitGeneral: BitEnumAttrCase<"General", 0, "general">;
-def GateTraitDiagonal: BitEnumAttrCase<"Diagonal", 1, "diagonal">;
-def GateTraitAntidiagonal: BitEnumAttrCase<"Antidiagonal", 2, "antidiagonal">;
-def GateTraitSymmetric: BitEnumAttrCase<"Symmetric", 4, "symmetric">;
-def GateTraitHermitian: BitEnumAttrCase<"Hermitian", 8, "hermitian">;
-def GateTraitPhase: BitEnumAttrCase<"Phase", 16, "phase">;
+def GateTraitGeneral: I32BitEnumAttrCase<"General", 0, "general">;
+def GateTraitDiagonal: I32BitEnumAttrCase<"Diagonal", 1, "diagonal">;
+def GateTraitAntidiagonal: I32BitEnumAttrCase<"Antidiagonal", 2, "antidiagonal">;
+def GateTraitSymmetric: I32BitEnumAttrCase<"Symmetric", 4, "symmetric">;
+def GateTraitHermitian: I32BitEnumAttrCase<"Hermitian", 8, "hermitian">;
+def GateTraitPhase: I32BitEnumAttrCase<"Phase", 16, "phase">;
 
-def GateTrait: BitEnumAttr<"GateTrait", "Gate traits/hints", [GateTraitGeneral, GateTraitDiagonal, GateTraitAntidiagonal, GateTraitSymmetric, GateTraitHermitian, GateTraitPhase]>;
-
-// Gate definition
-def ISQ_GateDefType : StructFieldAttr<"type", StrAttr>;
-def ISQ_GateDefValue : StructFieldAttr<"value", AnyAttr>;
-def ISQ_GateDefinitionAttr : StructAttr<"GateDefinition", ISQ_Dialect, [ISQ_GateDefType, ISQ_GateDefValue]>;
-def ISQ_ComplexF64Attr : ISQ_Attr<"ComplexF64", []>{
-    let mnemonic = "complex";
-    let summary = "Complex number definition.";
-    let description = [{
-        A complex with a real part and an imaginary part.
-
-        For simplicity we use the notation `#isq.complex<a,b>` to represent the number \f$(a+bi)\f$.
-    }];
-    let parameters = (
-        ins
-        "::llvm::APFloat": $real,
-        "::llvm::APFloat": $imag
+def GateTrait: I32BitEnumAttr<"GateTrait", "Gate traits/hints", [GateTraitGeneral, GateTraitDiagonal, GateTraitAntidiagonal, GateTraitSymmetric, GateTraitHermitian, GateTraitPhase]>;
+// Complex matrix.
+def DenseComplexF64MatrixAttr : AttrDef<ISQ_Dialect, "DenseComplexF64Matrix">{
+    let parameters = (ins
+        "mlir::DenseElementsAttr": $body
     );
+    let mnemonic = "matrix";
+    let assemblyFormat = "`<` $body `>`";
+    let builders = [
+        AttrBuilder<(ins "const MatrixVal&": $matrix)>
+    ];
     let extraClassDeclaration = [{
-        ::std::complex<double> complexValue();
-        static ::mlir::Attribute parseIR(::mlir::AsmParser& parser);
-        void printIR(::mlir::AsmPrinter& p) const;
+        using MatrixVal = llvm::SmallVector<llvm::SmallVector<std::complex<double>>>;
+        MatrixVal toMatrixVal();
     }];
-    let parser = "return "# cppClassName # "::parseIR(parser);";
-    let printer = [{return this->printIR(printer);}];
-    
+    let extraClassDefinition = [{
+        template<isq::ir::math::MatDouble T> 
+        static DenseComplexF64MatrixAttr fromMatrix(mlir::MLIRContext* ctx, const T& mat){
+            return fromMatrixImpl(ctx, mat);
+        }
+    }];
+
+}
+// Gate definition
+def ISQ_GateDefinitionAttr : AttrDef<ISQ_Dialect, "GateDefinition">{
+    let parameters = (ins 
+        "mlir::StringAttr": $type, 
+        "mlir::Attribute": $value);
+    let mnemonic = "gatedef";
+    let assemblyFormat = "`<` struct(params) `>`";
 }
 
 def ISQ_GateDefinitionList : TypedArrayAttrBase<ISQ_GateDefinitionAttr, "Gate definition array attribute">;
+
+
+
+def DenseComplexF64ArrayAttr : DenseArrayAttrBase<"DenseComplexF64ArrayAttr", "std::complex<double>", "complexF64">;
 
 ////////////////////////////////////
 // Operations
@@ -256,19 +275,21 @@ def ISQ_DefgateOp : ISQ_Op<"defgate", [Symbol, DeclareOpInterfaceMethods<SymbolU
         TypeArrayAttr: $parameters
     );
     let results = (outs);
-    
+    let hasCustomAssemblyFormat = 1;
+    let hasVerifier = 1;
     /*
     let assemblyFormat = [{
         custom<GateVisibility>($sym_visibility) $sym_name (`(` $parameters^ `)`)? ( $shape^ )? attr-dict `:` $type
     }];
     */
-    
+    /*
     let parser = [{return $cppClass::parseIR(parser, result);}];
     let printer = [{return this->printIR(p);}];
     
     let verifier = [{
         return this->verifyIR();
     }];
+    */
     let extraClassDeclaration = [{
         bool isGateArray();
         bool isDeclaration();
@@ -320,9 +341,11 @@ def ISQ_DeclareQOpOp : ISQ_Op<"declare_qop", [Symbol]>{
         $sym_name attr-dict `:` `[` $size `]` $signature
     }];
     */
+    let hasCustomAssemblyFormat = 1;
+    /*
     let parser = [{return $cppClass::parseIR(parser, result);}];
     let printer = [{return this->printIR(p);}];
-    
+    */
     let extraClassDeclaration = [{
         ::mlir::Type getTypeWhenUsed();
         bool isDeclaration();
@@ -438,9 +461,12 @@ def ISQ_ApplyGateOp : ISQ_Op<"apply", [
     let assemblyFormat = [{
         $gate `(` $args `)` attr-dict `:` qualified(type($gate))
     }];
+    let hasVerifier = 1;
+    /*
     let verifier = [{
         return this->verifyIR();
     }];
+    */
     let extraClassDeclaration = [{
         ::mlir::LogicalResult verifyIR();
     }];
@@ -486,9 +512,11 @@ def ISQ_CallQOpOp: ISQ_Op<"call_qop", [DeclareOpInterfaceMethods<SymbolUserOpInt
         static ::mlir::ParseResult parseIR(::mlir::OpAsmParser& parser, ::mlir::OperationState& result);
         void printIR(::mlir::OpAsmPrinter& p);
     }];
+    /*
     let parser = [{return $cppClass::parseIR(parser, result);}];
     let printer = [{return this->printIR(p);}];
-
+    */
+    let hasCustomAssemblyFormat = 1;
 
     /*
     let assemblyFormat = [{
@@ -527,9 +555,12 @@ def ISQ_DowngradeGateOp: ISQ_Op<"downgrade", [NoSideEffect]>{
     let assemblyFormat = [{
         `(` $args `:` qualified(type($args)) `)` attr-dict `:`qualified(type(results))
     }];
+    /*
     let verifier = [{
         return ::isq::ir::verify(*this);
     }];
+    */
+    let hasVerifier = 1;
     let hasCanonicalizer = 1;
 }
 
@@ -551,9 +582,11 @@ def ISQ_DecorateOp: ISQ_Op<"decorate", [NoSideEffect]>{
     public:
         static GateTrait computePostDecorateTrait(GateTrait attr, int ctrl, bool adj, bool ctrl_all_one);
     }];
+    /*
     let verifier = [{
         return ::isq::ir::verify(*this);
-    }];
+    }];*/
+    let hasVerifier = 1;
     let hasCanonicalizer = 1;
 }
 

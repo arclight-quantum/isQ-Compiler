@@ -15,6 +15,7 @@
 #include <mlir/Support/LogicalResult.h>
 #include <mlir/Pass/Pass.h>
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include <llvm/ADT/SmallString.h>
 namespace isq::ir::passes{
 // Convert famous parametric sq gates into controlled U3.
 // Rx, Ry and Rz.

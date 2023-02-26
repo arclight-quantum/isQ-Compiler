@@ -1,14 +1,12 @@
 #include "isq/Enums.h"
 #include "isq/GateDefTypes.h"
 #include "isq/Operations.h"
-#include "isq/QStructs.h"
 #include "isq/QTypes.h"
 #include "isq/passes/Passes.h"
 #include <cctype>
 #include <llvm/ADT/StringExtras.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/raw_ostream.h>
-#include <mlir/Dialect/StandardOps/IR/Ops.h>
 #include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/BuiltinTypes.h>
@@ -52,8 +50,8 @@ struct RewritePreferFamousGate : public mlir::OpRewritePattern<UseGateOp>{
         if(!defs) return mlir::failure();
         for(auto attr: defs.getValue()){
             auto def = attr.cast<GateDefinition>();
-            if(def.type().strref()=="qir"){
-                auto flat_symbol = def.value().cast<mlir::FlatSymbolRefAttr>();
+            if(def.getType().strref()=="qir"){
+                auto flat_symbol = def.getValue().cast<mlir::FlatSymbolRefAttr>();
                 for(auto& famousGate: famousGates){
                     if(flat_symbol.getValue() == famousGate.qir_name){
                         if(getFamousName(famousGate.famous_name) != defgate.sym_name()){
@@ -171,7 +169,7 @@ struct RecognizeFamousGatePass : public mlir::PassWrapper<RecognizeFamousGatePas
         mlir::SmallVector<mlir::Type> toffoliArgType;
         toffoliArgType.append(3, QStateType::get(ctx));
         auto funcType = mlir::FunctionType::get(ctx, toffoliArgType, toffoliArgType);
-        auto funcop = builder.create<mlir::FuncOp>(mlir::NameLoc::get(builder.getStringAttr("<builtin>")), BUILTIN_TOFFOLI_DECOMPOSITION, funcType, builder.getStringAttr("private"));
+        auto funcop = builder.create<mlir::func::FuncOp>(mlir::NameLoc::get(builder.getStringAttr("<builtin>")), BUILTIN_TOFFOLI_DECOMPOSITION, funcType, builder.getStringAttr("private"));
         auto body = funcop.addEntryBlock();
         builder.setInsertionPointToStart(body);
         mlir::SmallVector<mlir::Value> qubits;
@@ -192,7 +190,7 @@ struct RecognizeFamousGatePass : public mlir::PassWrapper<RecognizeFamousGatePas
         emitBuiltinGate(builder, "CNOT", {&qubits[0], &qubits[1]});
         emitBuiltinGate(builder, "T", {&qubits[0]});
         emitBuiltinGate(builder, "S", {&qubits[1]});
-        builder.create<mlir::ReturnOp>(mlir::NameLoc::get(builder.getStringAttr("<builtin>")), qubits);
+        builder.create<mlir::func::ReturnOp>(mlir::NameLoc::get(builder.getStringAttr("<builtin>")), qubits);
     }
     void emitFamousGate(const FamousGateDef& famousGate){
         auto moduleOp = getOperation();
@@ -203,14 +201,14 @@ struct RecognizeFamousGatePass : public mlir::PassWrapper<RecognizeFamousGatePas
         auto gateType = GateType::get(ctx, famousGate.gate_size, famousGate.gate_trait);
         auto name = getFamousName(famousGate.famous_name);
         mlir::SmallVector<mlir::Attribute> definitions;
-        definitions.push_back(GateDefinition::get(builder.getStringAttr("qir"), mlir::FlatSymbolRefAttr::get(builder.getStringAttr(famousGate.qir_name)),ctx));
+        definitions.push_back(GateDefinition::get(ctx, builder.getStringAttr("qir"), mlir::FlatSymbolRefAttr::get(builder.getStringAttr(famousGate.qir_name))));
         if(famousGate.mat_def){
             auto gate = createMatrixDef(ctx, *famousGate.mat_def);
             definitions.push_back(gate);
         }
         // toffoli special handling
         if(famousGate.famous_name == mlir::StringRef("toffoli")){
-            definitions.push_back(GateDefinition::get(builder.getStringAttr("decomposition"), mlir::FlatSymbolRefAttr::get(builder.getStringAttr(BUILTIN_TOFFOLI_DECOMPOSITION)),ctx));
+            definitions.push_back(GateDefinition::get(ctx, builder.getStringAttr("decomposition"), mlir::FlatSymbolRefAttr::get(builder.getStringAttr(BUILTIN_TOFFOLI_DECOMPOSITION))));
         }
         auto attrDefs = mlir::ArrayAttr::get(ctx, definitions);
 
@@ -225,7 +223,7 @@ struct RecognizeFamousGatePass : public mlir::PassWrapper<RecognizeFamousGatePas
             // add the qir operation as well.
             paramTypes.append(famousGate.gate_size, QIRQubitType::get(ctx));
             auto funcType = mlir::FunctionType::get(ctx, paramTypes, (mlir::TypeRange){});
-            builder.create<mlir::FuncOp>(mlir::NameLoc::get(builder.getStringAttr("<builtin>")), famousGate.qir_name, funcType, builder.getStringAttr("private"));
+            builder.create<mlir::func::FuncOp>(mlir::NameLoc::get(builder.getStringAttr("<builtin>")), famousGate.qir_name, funcType, builder.getStringAttr("private"));
         }
         // toffoli: special handling
         if(famousGate.famous_name == mlir::StringRef("toffoli")){

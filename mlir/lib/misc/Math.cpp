@@ -11,16 +11,24 @@ namespace math {
 
 struct Mat : public Fwd<Matrix<std::complex<double>, Dynamic, Dynamic>> {};
 
-::mlir::Optional<size_t> checkDimensionality(InputMatrix &mat) {
+template<typename T>
+concept FwdMatDouble = requires(T a){
+    { *a.body}->MatDouble;
+};
+
+template<FwdMatDouble Vec>
+::mlir::Optional<size_t> checkDimensionalityGeneric(Vec &mat) {
     auto sz = mat.body->size();
     for (auto &row : *mat.body) {
         if (row.size() != sz)
             return {};
     }
     return sz;
+
 }
-void MatDel::operator()(Mat *m) { delete m; }
-std::unique_ptr<Mat, MatDel> toEigenMatrix(InputMatrix &mat) {
+
+template<FwdMatDouble Vec>
+std::unique_ptr<Mat, MatDel> toEigenMatrixGeneric(Vec& mat){
     auto sz = checkDimensionality(mat);
     if (!sz.hasValue())
         return {};
@@ -36,6 +44,25 @@ std::unique_ptr<Mat, MatDel> toEigenMatrix(InputMatrix &mat) {
     MatDel del;
     return std::unique_ptr<Mat, MatDel>(mm, del);
 }
+
+::mlir::Optional<size_t> checkDimensionality(InputMatrix &mat) {
+    return checkDimensionalityGeneric(mat);
+}
+
+::mlir::Optional<size_t> checkDimensionality(InputSmallMatrix &mat) {
+    return checkDimensionalityGeneric(mat);
+}
+
+
+std::unique_ptr<Mat, MatDel> toEigenMatrix(InputMatrix &mat) {
+    return toEigenMatrixGeneric(mat);
+}
+std::unique_ptr<Mat, MatDel> toEigenMatrix(InputSmallMatrix &mat) {
+    return toEigenMatrixGeneric(mat);
+}
+
+
+void MatDel::operator()(Mat *m) { delete m; }
 
 bool isUnitary(Mat &mat, double eps) { return mat->isUnitary(eps); }
 

@@ -30,5 +30,23 @@ void QIRResultParsePrint::printType(::mlir::Type type,
                                  ::mlir::AsmPrinter &printer) const {
 }
 
+::mlir::Type QIRResultType::parse(::mlir::AsmParser &odsParser){
+    QIRResultParsePrint p;
+    return p.parseType(odsParser);
+}
+void QIRResultType::print(::mlir::AsmPrinter &odsPrinter) const{
+    QIRResultParsePrint p;
+    p.printType(*this, odsPrinter);
+}
+::mlir::Type QIRQubitType::parse(::mlir::AsmParser &odsParser){
+    QIRQubitParsePrint p;
+    return p.parseType(odsParser);
+}
+void QIRQubitType::print(::mlir::AsmPrinter &odsPrinter) const{
+    QIRQubitParsePrint p;
+    p.printType(*this, odsPrinter);
+}
+
+
 } // namespace ir
 } // namespace isq

@@ -1,7 +1,6 @@
 #include "isq/Dialect.h"
 #include "isq/Lower.h"
 #include "isq/Operations.h"
-#include "isq/QStructs.h"
 #include "isq/QTypes.h"
 #include "isq/GateDefTypes.h"
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
@@ -9,13 +8,13 @@
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
-#include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
+#include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
+#include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -25,14 +24,14 @@
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "mlir/Dialect/StandardOps/Transforms/FuncConversions.h"
+#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "llvm/Support/raw_ostream.h"
 #include <mlir/Dialect/Arithmetic/Transforms/Passes.h>
 namespace isq{
 namespace ir{
 namespace passes{
 
-namespace{
+namespace qir_rep_to_llvm{
 using namespace mlir;
 struct QIRRepToLLVMPass : public mlir::PassWrapper<QIRRepToLLVMPass, mlir::OperationPass<mlir::ModuleOp>>{
 
@@ -54,11 +53,12 @@ struct QIRRepToLLVMPass : public mlir::PassWrapper<QIRRepToLLVMPass, mlir::Opera
 
         RewritePatternSet patterns(&getContext());
         populateAffineToStdConversionPatterns(patterns);
-        populateLoopToStdConversionPatterns(patterns);
+        populateSCFToControlFlowConversionPatterns(patterns);
         populateMemRefToLLVMConversionPatterns(typeConverter, patterns);
         arith::populateArithmeticExpandOpsPatterns(patterns);
         arith::populateArithmeticToLLVMConversionPatterns(typeConverter, patterns);
-        populateStdToLLVMConversionPatterns(typeConverter, patterns);
+        cf::populateControlFlowToLLVMConversionPatterns(typeConverter, patterns);
+        //populateStdToLLVMConversionPatterns(typeConverter, patterns);
 
         auto module = getOperation();
 
@@ -77,6 +77,7 @@ struct QIRRepToLLVMPass : public mlir::PassWrapper<QIRRepToLLVMPass, mlir::Opera
 }
 
 void registerQIR2LLVM(){
+    using namespace qir_rep_to_llvm;
     mlir::PassRegistration<QIRRepToLLVMPass>();
 }
 

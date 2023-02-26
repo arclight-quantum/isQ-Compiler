@@ -1,13 +1,12 @@
 #include "isq/Lower.h"
-#include "isq/QStructs.h"
 #include "isq/QTypes.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "llvm/Support/raw_ostream.h"
+#include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <set>
 #include <math.h>
 #include <iostream>
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "isq/QAttrs.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -39,7 +38,9 @@ const std::string isq_decomposed_head = "__isq__decomposed__";
 const std::string qir_bp = "__quantum__qis__bp";
 const std::string qir_print_i64 = "__quantum__qis__isq_print_i64";
 const std::string qir_print_f64 = "__quantum__qis__isq_print_f64";
-
+using mlir::func::FuncOp;
+using mlir::func::CallOp;
+using mlir::func::ReturnOp;
 void createExternOp(::mlir::PatternRewriter& rewriter, ::mlir::MLIRContext* ctx, ::mlir::StringRef externOpName, ::mlir::ArrayRef<::mlir::Type> argsType, ::mlir::ArrayRef<::mlir::Type> returnType){
     auto fntype = FunctionType::get(ctx, argsType, returnType);
     rewriter.create<FuncOp>(UnknownLoc::get(ctx), externOpName, fntype, ::mlir::StringAttr::get(ctx, "private"));
@@ -56,7 +57,7 @@ CallOp safeCallExternOp(::mlir::ModuleOp modul, ::mlir::PatternRewriter& rewrite
         argTypes.push_back(val.getType());
     }
     if(auto defined_func = modul.lookupSymbol<FuncOp>(externOpName)){
-        assert(defined_func.getType() == FunctionType::get(ctx, argTypes, returnType));
+        assert(defined_func.getFunctionType() == FunctionType::get(ctx, argTypes, returnType));
     }else{
         PatternRewriter::InsertionGuard insertGuard(rewriter);
         rewriter.setInsertionPointToStart(modul.getBody());
@@ -95,12 +96,12 @@ mlir::Float64Type QIRExternQuantumFunc::getF64Type(::mlir::MLIRContext *ctx){
 
 void QIRExternQuantumFunc::breakPoint(::mlir::Location loc, PatternRewriter& rewriter, ModuleOp module, Value i){
     assert(i.getType() == getIndexType(module->getContext()));
-    auto indexcast = rewriter.create<arith::IndexCastOp>(loc, i, getI64Type(module.getContext()));
+    auto indexcast = rewriter.create<arith::IndexCastOp>(loc, getI64Type(module.getContext()),i);
     safeCallExternOp(module, rewriter, loc, qir_bp, ArrayRef<Value>{indexcast.getOut()}, ArrayRef<Type>{});
 }
 void QIRExternQuantumFunc::printInt(::mlir::Location loc, PatternRewriter& rewriter, ModuleOp module, Value i){
     assert(i.getType() == getIndexType(module->getContext()));
-    auto indexcast = rewriter.create<arith::IndexCastOp>(loc, i, getI64Type(module.getContext()));
+    auto indexcast = rewriter.create<arith::IndexCastOp>(loc, getI64Type(module.getContext()), i);
     safeCallExternOp(module, rewriter, loc, qir_print_i64, ArrayRef<Value>{indexcast.getOut()}, ArrayRef<Type>{});
 }
 void QIRExternQuantumFunc::printFloat(::mlir::Location loc, PatternRewriter& rewriter, ModuleOp module, Value f){

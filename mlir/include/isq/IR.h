@@ -1,6 +1,6 @@
 #include "./Dialect.h"
 #include "./QTypes.h"
-#include "./QStructs.h"
+//#include "./QStructs.h"
 #include "./QAttrs.h"
 #include "./Operations.h"
 #include "./OpVerifier.h"

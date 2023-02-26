@@ -1,6 +1,6 @@
 // isQ tokenizer written in Nom.
 use super::{tokens::*, location::Span};
-use nom::{combinator::*, IResult, bytes::complete::{tag, take_until}, branch::alt, character::complete::{char, anychar, u64, alphanumeric0, newline, multispace0, satisfy}, error::{ErrorKind, make_error, Error}, number::complete::double, sequence::pair, multi::{many_till, many0, many1}, AsChar};
+use nom::{combinator::*, IResult, bytes::complete::{tag}, branch::alt, character::complete::{char, anychar, u64,  newline, multispace0, satisfy}, error::{ErrorKind, Error}, number::complete::double, sequence::pair, multi::{many_till, many0}, AsChar};
 use std::cell::Cell;
 use nom_locate::{LocatedSpan, position};
 
@@ -33,8 +33,8 @@ fn token_comment_line<'a>(s: NomSpan<'a>)->IResult<NomSpan<'a>, TokenLoc<'a>>{
 // Comment block. Nested comment is supported.
 fn token_comment_block<'a>(s: NomSpan<'a>)->IResult<NomSpan<'a>, TokenLoc<'a>>{
     fn block<'a>(s:NomSpan<'a>)->IResult<NomSpan<'a>, ()> {
-        let (s, start) = tag("/*")(s)?;
-        let mut indent = Cell::new(1);
+        let (s, _start) = tag("/*")(s)?;
+        let indent = Cell::new(1);
         let incr_indent = |s: NomSpan<'a>|{
             let (s, _) = tag("/*")(s)?;
             indent.set(indent.get()+1);
@@ -332,7 +332,7 @@ fn tokenize_lexeme<'a>(s: NomSpan<'a>)->IResult<NomSpan<'a>, Vec<TokenLoc<'a>>>{
 
 pub fn tokenizer<'a>(s: &'a str)->IResult<NomSpan<'a>, Vec<TokenLoc<'a>>>{
     let s2 = NomSpan::new(s);
-    tokenize_lexeme(s2)
+    tokenize_lexeme(s2).map(|(s, x)| (s, x.into_iter().filter(|y| if let Token::Comment = y.0 {true} else {false}).collect()))
 }
 
 

@@ -47,10 +47,10 @@ endif()
 
 
 # SET(CMAKE_BUILD_TYPE "Release")
-set (CMAKE_CXX_STANDARD 17)
+set (CMAKE_CXX_STANDARD 20)
 add_compile_options(-fno-rtti)
 add_compile_options(-g)
-find_package(LLVM 14.0.0 REQUIRED CONFIG)
+find_package(LLVM 15.0.7 REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 find_package(MLIR REQUIRED CONFIG)

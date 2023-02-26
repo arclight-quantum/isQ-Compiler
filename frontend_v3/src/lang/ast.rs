@@ -142,7 +142,7 @@ impl<T> ImportEntry<T>{
         Self(ImportEntryType::All(name), annotation)
     }
     pub fn set_tree_root(&mut self, base: Qualified<T>){
-        if let ImportEntryType::Tree(a, b)= &mut self.0{
+        if let ImportEntryType::Tree(a, _)= &mut self.0{
             *a = Some(base);
         }else{
             unreachable!();

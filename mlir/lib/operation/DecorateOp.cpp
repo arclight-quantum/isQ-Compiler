@@ -60,6 +60,9 @@ void DecorateOp::getCanonicalizationPatterns(mlir::RewritePatternSet &patterns,
     patterns.add<passes::canonicalize::AdjointHermitian>(context);
 }
 
+::mlir::LogicalResult DecorateOp::verify(){
+    return ::isq::ir::verify(*this);
+}
 
 } // namespace ir
 } // namespace isq

@@ -4,11 +4,11 @@ let
 in
 stdenv.mkDerivation {
   pname = "mlir";
-  version = "14.0.0rc1";
+  version = "15.0.7";
   #builder = ./builder.sh;
   src = fetchurl {
-    url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.0-rc1/llvm-project-14.0.0rc1.src.tar.xz";
-    sha256 = "3de5fb12e2c43ba4964fabb1baddea870b652d2c971aaff1172ca0c57bb1f54a";
+    url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/llvm-project-15.0.7.src.tar.xz";
+    sha256 = "1ipaxl6jhd6jhnl6skjl7k5jk9xix0643fdhy56z130jnhjcnpwb";
   };
   buildInputs = [ cmake ninja python3 git lld ];
   cmakeFlags = with stdenv; [
@@ -22,5 +22,7 @@ stdenv.mkDerivation {
     "-DCMAKE_CXX_COMPILER=clang++"
     "-DLLVM_ENABLE_LLD=ON"
   ];
+  separateDebugInfo = true;
+  dontStrip = true;
   cmakeDir = "../llvm";
 }

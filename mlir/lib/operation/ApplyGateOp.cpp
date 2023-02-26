@@ -56,6 +56,11 @@ void ApplyGateOp::getCanonicalizationPatterns(mlir::RewritePatternSet &patterns,
     patterns.add<passes::canonicalize::CancelUUAdj>(context);
 }
 
+::mlir::LogicalResult ApplyGateOp::verify(){
+    return this->verifyIR();
+}
+
+
 /*
 void ApplyOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,
                                       mlir::MLIRContext *context) {

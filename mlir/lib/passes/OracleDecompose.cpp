@@ -1,9 +1,7 @@
 #include "isq/GateDefTypes.h"
 #include "isq/Operations.h"
-#include "isq/QStructs.h"
 #include "isq/QTypes.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -32,7 +30,7 @@ public:
     OracleTableDef(mlir::MLIRContext* ctx, mlir::ModuleOp module): mlir::OpRewritePattern<DefgateOp>(ctx, 1), rootModule(module){
     }
 
-    mlir::LogicalResult decomposeOracle(mlir::PatternRewriter& rewriter, ::mlir::FuncOp& fop, const std::vector<std::vector<int>>& value, int size) const{
+    mlir::LogicalResult decomposeOracle(mlir::PatternRewriter& rewriter, ::mlir::func::FuncOp& fop, const std::vector<std::vector<int>>& value, int size) const{
         
         auto ctx = rewriter.getContext();
         
@@ -41,8 +39,8 @@ public:
 
         rewriter.updateRootInPlace(fop, [&]{
             mlir::SmallVector<mlir::Value> qubits;
-            qubits.append(fop.body().front().args_begin(), fop.body().front().args_end());
-            rewriter.setInsertionPointToStart(&fop.body().front());
+            qubits.append(fop.getBody().front().args_begin(), fop.getBody().front().args_end());
+            rewriter.setInsertionPointToStart(&fop.getBody().front());
 
             auto loc = fop.getLoc();
             auto idx = rewriter.create<mlir::arith::ConstantIndexOp>(loc, 0);
@@ -85,11 +83,11 @@ public:
                     mlir::SmallVector<mlir::Type> types;
                     for (auto q: qidx){
                         auto load_qubit = rewriter.create<mlir::AffineLoadOp>(loc, qubits[q], mlir::ArrayRef<mlir::Value>({idx}));
-                        params.push_back(load_qubit.result());
+                        params.push_back(load_qubit.getResult());
                         types.push_back(qst);
                     }
                     auto target = rewriter.create<mlir::AffineLoadOp>(loc, qubits[n+midx], mlir::ArrayRef<mlir::Value>({idx}));
-                    params.push_back(target.result());
+                    params.push_back(target.getResult());
                     types.push_back(qst);
                     // is apply
                     auto apply = rewriter.create<isq::ir::ApplyGateOp>(loc, mlir::ArrayRef<mlir::Type>(types), res, mlir::ArrayRef<mlir::Value>(params));
@@ -111,7 +109,7 @@ public:
         if (defgate.definition()->size() != 2) return mlir::failure();
         
         int id = 0;
-        mlir::FuncOp fop;
+        mlir::func::FuncOp fop;
         std::vector<std::vector<int>> value;
         bool hasfunc = false, hasval = false;
         for (auto def: defgate.definition()->getAsRange<GateDefinition>()){
@@ -135,9 +133,9 @@ public:
             }
             ::mlir::SmallVector<::mlir::Attribute> new_defs;
             new_defs.push_back(GateDefinition::get(
+                ctx,
                 ::mlir::StringAttr::get(ctx, "decomposition_raw"),
-                ::mlir::FlatSymbolRefAttr::get(ctx, fop.sym_nameAttr()),
-                ctx
+                ::mlir::FlatSymbolRefAttr::get(ctx, fop.getSymNameAttr())
             ));
             defgate->setAttr("definition", ::mlir::ArrayAttr::get(ctx, new_defs));
         }

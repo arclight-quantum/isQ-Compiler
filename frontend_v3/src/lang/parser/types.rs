@@ -62,7 +62,7 @@ fn parse_reference_type_doubleref<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'
 fn parse_array_type<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, VarLexicalTy<Span>>{
     let (s, tok_lsquare) = reserved_op(LSquare)(s)?;
     let (s, ty) = parse_full_type(s)?;
-    let (s, semicolon) = reserved_op(Semicolon)(s)?;
+    let (s, _semicolon) = reserved_op(Semicolon)(s)?;
     let (s, size) = tok_natural(s)?;
     let (s, tok_rsquare) = reserved_op(RSquare)(s)?;
     Ok((s, 

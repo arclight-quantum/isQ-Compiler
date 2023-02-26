@@ -7,6 +7,9 @@ pub fn parse_toplevel_statement<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s,
         parse_statement_import,
         parse_statement_procedure,
         parse_statement_gatedef,
+        parse_statement_let_defvar,
+        // Legacy grammar
+        parse_cstyle_defvar,
     )))(s)?;
     Ok((s, package_decl.into_iter().chain(top_stmts.into_iter()).collect()))
 }
@@ -26,7 +29,9 @@ pub fn parse_statement<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST
         parse_statement_return,
         parse_statement_continue,
         parse_statement_break,
-        parse_statement_empty
+        parse_statement_empty,
+        // Legacy grammar
+        parse_cstyle_defvar
     ))(s)
 }
 
@@ -71,11 +76,11 @@ fn parse_statement_while<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LA
 fn parse_statement_for<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
     let (s, kw) = reserved_id(For)(s)?;
     let (s, var) = parse_ident(s)?;
-    let (s, kw2) = reserved_id(In)(s)?;
-    let (s, exprRange) = parse_expr(s)?;
+    let (s, _kw2) = reserved_id(In)(s)?;
+    let (s, expr_range) = parse_expr(s)?;
     let (s, block) = parse_statement_block(s)?;
     let span = kw.1.span_over(block.1);
-    Ok((s, ok_ast(ASTNode::For { var: var, range: exprRange, body: block }, span)))
+    Ok((s, ok_ast(ASTNode::For { var: var, range: expr_range, body: block }, span)))
 }
 
 // we fuse the two together since they both start with parse_expr.
@@ -99,7 +104,7 @@ fn parse_statement_gatedef<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, 
         reserved_id(Gate)
     ))(s)?;
     let (s, name) = parse_ident(s)?;
-    let (s, tok_assign) = reserved_op(ReservedOp::Assign)(s)?;
+    let (s, _tok_assign) = reserved_op(ReservedOp::Assign)(s)?;
     let (s, mat_expr) = parse_expr(s)?;
     let (s, tok_semicolon) = reserved_op(Semicolon)(s)?;
     Ok((s, ok_ast(ASTNode::Gatedef { name, definition: mat_expr }, tok_gatedef.1.span_over(tok_semicolon.1))))    
@@ -132,11 +137,11 @@ let arr3 = [1,2,3,4,5];
 
 
 fn parse_let_defvar_type<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, VarLexicalTy<Span>>{
-    let (s, tok) = reserved_op(Colon)(s)?;
+    let (s, _tok) = reserved_op(Colon)(s)?;
     parse_full_type(s)
 }
 fn parse_let_initval<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, Expr<Span>>{
-    let (s, tok) = reserved_op(Assign)(s)?;
+    let (s, _tok) = reserved_op(Assign)(s)?;
     parse_expr(s)
 }
 
@@ -291,7 +296,7 @@ fn parse_procedure_argument<'s, 'a>( s: TokenStream<'s, 'a>)->ParseResult<'s, 'a
 
 
 fn parse_statement_procedure<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
-    let (s, tok_procedure) = reserved_id(Procedure)(s)?;
+    let (s, tok_procedure) = alt((reserved_id(Procedure), reserved_id(Fn)))(s)?;
     let (s, name) = parse_ident(s)?;
     let (s, tok_lparen) = reserved_op(LParen)(s)?;
     let (s, args) = separated_list0(reserved_op(Comma),  parse_procedure_argument)(s)?;
@@ -346,7 +351,7 @@ fn parse_statement_empty<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LA
 mod legacy{
     use super::super::*;
 
-    fn parse_cstyle_defvar<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
+    pub fn parse_cstyle_defvar<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
         let (s, base_type) = parse_base_type(false, s)?;
         let (s, vars) = separated_list1(reserved_op(Comma), map(|s| parse_cstyle_defvar_term(base_type.clone(), s), |(a, b, c)|{
             (VarDef{var: a, ty: Some(b)}, c)
@@ -355,39 +360,39 @@ mod legacy{
         let span = base_type.1.span_over(tok.1);
         Ok((s, ok_ast(ASTNode::Defvar { definitions: vars }, span)))
     }
-    
-fn parse_cstyle_defvar_term<'s, 'a>(ty: VarLexicalTy<Span>, s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, (Ident<Span>, VarLexicalTy<Span>, Option<Expr<Span>>)>{
-    let (s, ident) = parse_ident(s)?;
-    let (after_lookahead, lookahead) = opt(next)(s)?;
-    if let Some(lookahead) = lookahead{
-        match lookahead.0{
-            Token::ReservedOp(LSquare)=>{
-                let (s, size) = tok_natural(after_lookahead)?;
-                let (s, r_brace) = reserved_op(RSquare)(s)?;
-                let span = ident.1.span_over(r_brace.1);
-                Ok((s, (
-                    ident,
-                    VarLexicalTy(Box::new(VarLexicalTyType::Array(ty, size)), span),
-                    None
-                )))
+        
+    fn parse_cstyle_defvar_term<'s, 'a>(ty: VarLexicalTy<Span>, s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, (Ident<Span>, VarLexicalTy<Span>, Option<Expr<Span>>)>{
+        let (s, ident) = parse_ident(s)?;
+        let (after_lookahead, lookahead) = opt(next)(s)?;
+        if let Some(lookahead) = lookahead{
+            match lookahead.0{
+                Token::ReservedOp(LSquare)=>{
+                    let (s, size) = tok_natural(after_lookahead)?;
+                    let (s, r_brace) = reserved_op(RSquare)(s)?;
+                    let span = ident.1.span_over(r_brace.1);
+                    Ok((s, (
+                        ident,
+                        VarLexicalTy(Box::new(VarLexicalTyType::Array(ty, size)), span),
+                        None
+                    )))
+                }
+                Token::ReservedOp(Assign)=>{
+                    let (s, init_val) = parse_expr(after_lookahead)?;
+                    let span = ident.1.span_over(init_val.1);
+                    Ok((s, (
+                        ident,
+                        ty,
+                        Some(init_val)
+                    )))
+                }
+                _=>{
+                    Ok((s, (ident, ty, None)))
+                }
             }
-            Token::ReservedOp(Assign)=>{
-                let (s, init_val) = parse_expr(after_lookahead)?;
-                let span = ident.1.span_over(init_val.1);
-                Ok((s, (
-                    ident,
-                    ty,
-                    Some(init_val)
-                )))
-            }
-            _=>{
-                Ok((s, (ident, ty, None)))
-            }
+        }else{
+            Ok((after_lookahead, (ident, ty, None)))
         }
-    }else{
-        Ok((after_lookahead, (ident, ty, None)))
     }
-}
 
 
 }
@@ -442,13 +447,13 @@ mod tests{
     fn test_parse_program(){
         let parser = test_parser(parse_toplevel_statement);
         println!("{:?}", parser("
-        package std::distributed;
+        package std::qmpi;
         import std::prelude::*;
-        procedure create_bell_pair(q: &[qbit]){
+        fn create_bell_pair(q: &[qbit]){
             reset(q[0]); reset(q[1]);
             H(q[0]);
             ctrl X(q[0], q[1]);
-        }
+        } deriving gate
         "));
     }
 

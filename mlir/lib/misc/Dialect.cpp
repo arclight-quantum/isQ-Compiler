@@ -13,7 +13,6 @@
 #define GET_ATTRDEF_CLASSES
 #include <isq/tblgen/ISQAttrs.cpp.inc>
 
-#include <isq/tblgen/ISQStructAttrs.cpp.inc>
 #include <isq/passes/Passes.h>
 #include <mlir/Transforms/InliningUtils.h>
 namespace isq {
@@ -66,15 +65,24 @@ void ISQDialect::getCanonicalizationPatterns(mlir::RewritePatternSet &results) c
 }
 
 mlir::Type ISQDialect::parseType(mlir::DialectAsmParser &parser) const {
+    /*
+    llvm::outs()<<"isq type\n";
     mlir::StringRef kw;
     auto kwLoc = parser.getCurrentLocation();
+    parser.emitError(kwLoc, "Here!");
     if (parser.parseKeyword(&kw)) {
         parser.emitError(kwLoc, "unrecognized type");
         return nullptr;
     }
+    
+    kwLoc = parser.getCurrentLocation();
+    parser.emitError(kwLoc, "Here2!");
+    */
+    auto kwLoc = parser.getCurrentLocation();
+    mlir::StringRef kw;
     mlir::Type ty;
     auto ret =
-        generatedTypeParser(parser, kw, ty);
+        generatedTypeParser(parser, &kw, ty);
     if (!ret.hasValue()) {
         parser.emitError(kwLoc, "unrecognized type");
         return nullptr;
@@ -98,7 +106,7 @@ mlir::Attribute ISQDialect::parseAttribute(::mlir::DialectAsmParser &parser,
         return nullptr;
     }
     mlir::Attribute attr;
-    auto ret = generatedAttributeParser(parser, kw, type, attr);
+    auto ret = generatedAttributeParser(parser, &kw, type, attr);
     if (!ret.hasValue()) {
         parser.emitError(kwLoc, "unrecognized attribute");
         return nullptr;

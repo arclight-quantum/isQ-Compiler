@@ -29,7 +29,7 @@ CallQOpOp::verifySymbolUses(::mlir::SymbolTableCollection &symbolTable) {
 ::mlir::ParseResult CallQOpOp::parseIR(::mlir::OpAsmParser &parser,
                                        ::mlir::OperationState &result) {
     ::mlir::SymbolRefAttr calleeAttr;
-    ::mlir::SmallVector<::mlir::OpAsmParser::OperandType, 4> argsOperands;
+    ::mlir::SmallVector<::mlir::OpAsmParser::UnresolvedOperand, 4> argsOperands;
     ::llvm::SMLoc argsOperandsLoc;
     (void)argsOperandsLoc;
     ::llvm::ArrayRef<::mlir::Type> argsTypes;
@@ -101,6 +101,15 @@ void CallQOpOp::printIR(::mlir::OpAsmPrinter &p) {
     p << ' ';
     p.printAttributeWithoutType(signatureAttr());
 }
+
+
+::mlir::ParseResult CallQOpOp::parse(::mlir::OpAsmParser &parser, ::mlir::OperationState &result){
+        return CallQOpOp::parseIR(parser, result);
+}
+void CallQOpOp::print(::mlir::OpAsmPrinter & p){
+    return this->printIR(p);
+}
+
 
 /*
 void ApplyOp::getCanonicalizationPatterns(mlir::RewritePatternSet &results,

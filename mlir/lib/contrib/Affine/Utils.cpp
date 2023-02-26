@@ -42,7 +42,7 @@ bool isMemrefRestricted(Value memref){
     return true;
   }
   if(auto memref_arg = memref.dyn_cast<::mlir::BlockArgument>()){
-    if(auto func = ::llvm::dyn_cast_or_null<::mlir::FuncOp>(memref_arg.getParentBlock()->getParentOp())){
+    if(auto func = ::llvm::dyn_cast_or_null<::mlir::func::FuncOp>(memref_arg.getParentBlock()->getParentOp())){
       for(auto i=0; i<func.getNumArguments(); i++){
         if(func.getArguments()[i]==memref){
           if(func.getArgAttr(i, RESTRICTED)){
@@ -446,7 +446,7 @@ static LogicalResult forwardUndef(AffineReadOpInterface loadOp, SmallVectorImpl<
 // currently only eliminates the stores only if no other loads/uses (other
 // than dealloc) remain.
 //
-void isq::contrib::mlir::affineScalarReplace(FuncOp f, DominanceInfo &domInfo,
+void isq::contrib::mlir::affineScalarReplace(func::FuncOp f, DominanceInfo &domInfo,
                                PostDominanceInfo &postDomInfo) {
   // Load op's whose results were replaced by those forwarded from stores.
   SmallVector<Operation *, 8> opsToErase;

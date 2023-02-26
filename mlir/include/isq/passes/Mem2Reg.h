@@ -2,7 +2,7 @@
 #define _ISQ_PASSES_MEM2REG_H
 #include <mlir/IR/Operation.h>
 #include <mlir/IR/PatternMatch.h>
-#include <mlir/Dialect/SCF/SCF.h>
+#include <mlir/Dialect/SCF/IR/SCF.h>
 namespace isq{
 namespace ir{
 namespace passes{

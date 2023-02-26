@@ -2,7 +2,6 @@
 #define _ISQ_GATEDEFTYPES_H
 #include "isq/Operations.h"
 #include "isq/QAttrs.h"
-#include "isq/QStructs.h"
 #include "isq/QTypes.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -15,14 +14,33 @@
 #include "mlir/Support/LogicalResult.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/ADT/StringRef.h"
+#include <llvm/ADT/APFloat.h>
 #include <memory>
 #include <optional>
 #include "isq/Math.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 namespace isq{
 namespace ir{
 
-GateDefinition createMatrixDef(mlir::MLIRContext* ctx, const std::vector<std::vector<std::complex<double>>>&);
 
+template<isq::ir::math::MatDouble Mat>
+static DenseComplexF64MatrixAttr fromMatrixImpl(mlir::MLIRContext* ctx, const Mat& mat){
+    mlir::SmallVector<std::complex<llvm::APFloat>> data;
+    for(auto& row: mat){
+        for(auto& value: row){
+            data.push_back(value);
+        }
+    }
+    auto shape = mlir::RankedTensorType::get({2, 2}, mlir::ComplexType::get(mlir::Float64Type::get(ctx)));
+    auto dense = mlir::DenseElementsAttr::get(shape, data);
+    return DenseComplexF64MatrixAttr::get(ctx, dense);
+}
+
+
+template<isq::ir::math::MatDouble Mat>
+GateDefinition createMatrixDef(mlir::MLIRContext* ctx, const Mat & mat){
+    return (GateDefinition::get(ctx, mlir::StringAttr::get(ctx, "unitary"), fromMatrixImpl(ctx,  mat)));
+}
 class GateDefinitionAttribute{
 public:
     enum GateDefinitionKind{
@@ -48,7 +66,7 @@ public:
 // Define by matrix.
 class MatrixDefinition: public GateDefinitionAttribute{
 private:
-    std::vector<std::vector<std::complex<double>>> mat;
+    DenseComplexF64MatrixAttr::MatrixVal mat;
 public:
     MatrixDefinition(::isq::ir::DefgateOp op, int id, ::isq::ir::GateType gateType, ::mlir::Attribute value);
     static bool classof(const GateDefinitionAttribute *attr) {
@@ -59,15 +77,15 @@ public:
     }
     static ::mlir::LogicalResult verify(::isq::ir::DefgateOp op, int id, ::isq::ir::GateType ty, ::mlir::Attribute attribute);
     static ::mlir::LogicalResult verifySymTable(::isq::ir::DefgateOp op, int id, ::isq::ir::GateType ty, ::mlir::Attribute attribute, ::mlir::SymbolTableCollection &symbolTable);
-    const std::vector<std::vector<std::complex<double>>>& getMatrix() const;
+    const DenseComplexF64MatrixAttr::MatrixVal& getMatrix() const;
 };
 
 // Define by decomposition.
 class DecompositionDefinition: public GateDefinitionAttribute{
 private:
-    mlir::FuncOp decomposition;
+    mlir::func::FuncOp decomposition;
 public:
-    ::mlir::FuncOp getDecomposedFunc();
+    mlir::func::FuncOp getDecomposedFunc();
     DecompositionDefinition(::isq::ir::DefgateOp op, int id, ::isq::ir::GateType gateType, ::mlir::Attribute value);
     static bool classof(const GateDefinitionAttribute *attr) {
         return attr->getKind() == GateDefinitionAttribute::GD_DECOMPOSITION;
@@ -81,9 +99,9 @@ public:
 // Define by decomposition.
 class DecompositionRawDefinition: public GateDefinitionAttribute{
 private:
-    mlir::FuncOp decomposition;
+    mlir::func::FuncOp decomposition;
 public:
-    ::mlir::FuncOp getDecomposedFunc();
+    mlir::func::FuncOp getDecomposedFunc();
     DecompositionRawDefinition(::isq::ir::DefgateOp op, int id, ::isq::ir::GateType gateType, ::mlir::Attribute value);
     static bool classof(const GateDefinitionAttribute *attr) {
         return attr->getKind() == GateDefinitionAttribute::GD_DECOMPOSITION_RAW;
@@ -133,13 +151,13 @@ public:
 // Helpers
 template<typename T>
 std::optional<std::shared_ptr<GateDefinitionAttribute>> inline parseGateDefinitionAs(::isq::ir::DefgateOp op, int id, ::isq::ir::GateType gateType, ::isq::ir::GateDefinition def){
-    if(def.type().strref() != T::defKindName()){
+    if(def.getType().strref() != T::defKindName()){
         return std::nullopt;
     }
-    if(::mlir::failed(T::verify(op, id, gateType, def.value()))){
+    if(::mlir::failed(T::verify(op, id, gateType, def.getValue()))){
         return std::nullopt;
     }
-    return std::make_shared<T>(op, id, gateType, def.value());
+    return std::make_shared<T>(op, id, gateType, def.getValue());
 }
 
 template<typename ... T>
@@ -148,12 +166,12 @@ template<> struct GateDefParser<>{
 public:
     static std::optional<std::shared_ptr<GateDefinitionAttribute>> parseGateDefinition(::isq::ir::DefgateOp op, int id, ::isq::ir::GateType gateType, ::isq::ir::GateDefinition def){
         op->emitError() << "Definition #" << id
-                << " has unrecognized type \""<<def.type().strref()<<"\".";
+                << " has unrecognized type \""<<def.getType().strref()<<"\".";
         return std::nullopt;
     };
     static ::mlir::LogicalResult verifySymTable(::isq::ir::DefgateOp op, int id, ::isq::ir::GateType ty, ::isq::ir::GateDefinition def, ::mlir::SymbolTableCollection &symbolTable){
         op->emitError() << "Definition #" << id
-                << " has unrecognized type \""<<def.type().strref()<<"\".";
+                << " has unrecognized type \""<<def.getType().strref()<<"\".";
         return ::mlir::failure();
     }
 };
@@ -161,15 +179,15 @@ template<typename T, typename ...U>
 struct GateDefParser<T, U...>{
 public:
     static std::optional<std::shared_ptr<GateDefinitionAttribute>> parseGateDefinition(::isq::ir::DefgateOp op, int id, ::isq::ir::GateType gateType, ::isq::ir::GateDefinition def){
-        if(def.type().strref() == T::defKindName()){
+        if(def.getType().strref() == T::defKindName()){
             return parseGateDefinitionAs<T>(op, id, gateType, def);
         }else{
             return GateDefParser<U...>::parseGateDefinition(op, id, gateType, def);
         }
     };
     static ::mlir::LogicalResult verifySymTable(::isq::ir::DefgateOp op, int id, ::isq::ir::GateType ty, ::isq::ir::GateDefinition def, ::mlir::SymbolTableCollection &symbolTable){
-        if(def.type().strref() == T::defKindName()){
-            return T::verifySymTable(op, id, ty, def.value(), symbolTable);
+        if(def.getType().strref() == T::defKindName()){
+            return T::verifySymTable(op, id, ty, def.getValue(), symbolTable);
         }else{
             return GateDefParser<U...>::verifySymTable(op, id, ty, def, symbolTable);
         }

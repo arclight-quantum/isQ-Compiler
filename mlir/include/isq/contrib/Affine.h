@@ -3,9 +3,10 @@
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/Dominance.h>
 #include "mlir/Pass/Pass.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 namespace isq::contrib{
 namespace mlir{
-    void affineScalarReplace(::mlir::FuncOp f, ::mlir::DominanceInfo &domInfo,
+    void affineScalarReplace(::mlir::func::FuncOp f, ::mlir::DominanceInfo &domInfo,
                          ::mlir::PostDominanceInfo &postDomInfo);
     void registerAffineScalarReplacementPass();
 }

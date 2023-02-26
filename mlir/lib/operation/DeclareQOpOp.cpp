@@ -105,5 +105,15 @@ if (op.op_type() != op.getResult().getType()) {
 return mlir::success();
 }
 */
+
+
+::mlir::ParseResult DeclareQOpOp::parse(::mlir::OpAsmParser &parser, ::mlir::OperationState &result){
+        return DeclareQOpOp::parseIR(parser, result);
+}
+void DeclareQOpOp::print(::mlir::OpAsmPrinter & p){
+    return this->printIR(p);
+}
+
+
 } // namespace ir
 } // namespace isq
