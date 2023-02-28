@@ -1,3 +1,5 @@
+//use std::marker::Destruct;
+
 use super::location::Span;
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
@@ -196,6 +198,121 @@ pub enum ASTNode<E, T>{
 
 #[derive(Debug, Clone)]
 pub struct AST<E, T>(pub Box<ASTNode<E, T>>, pub T);
+
+impl<E, T> ASTBlock<E, T>{
+    pub fn lift<E2, T2, F: Fn(E)->E2, G: Fn(T)->T2>(self, f: &F, g: &G)->ASTBlock<E2, T2>{
+        ASTBlock(self.0.into_iter().map(|x| x.lift(f, g)).collect(), g(self.1) )       
+    }
+}
+
+impl<E> Expr<E>{
+    pub fn lift<E2, F: Fn(E)->E2>(self, f: &F)->Expr<E2>{
+        Expr(Box::new(match *self.0{
+            ExprNode::Ident(id) => ExprNode::Ident(id.lift(f)),
+            ExprNode::Qualified(q) => ExprNode::Qualified(q.lift(f)),
+            ExprNode::Binary { op, lhs, rhs } => ExprNode::Binary { op, lhs: lhs.lift(f), rhs: rhs.lift(f) },
+            ExprNode::Paren(sub) => ExprNode::Paren(sub.lift(f)),
+            ExprNode::Unary { op, arg } => ExprNode::Unary { op, arg: arg.lift(f) },
+            ExprNode::Subscript { base, offset } => ExprNode::Subscript { base: base.lift(f), offset: offset.lift(f) },
+            ExprNode::Call { callee, args } => ExprNode::Call { callee: callee.lift(f), args: args.into_iter().map(|x| x.lift(f)).collect()},
+            ExprNode::LitInt(x) => ExprNode::LitInt(x),
+            ExprNode::LitFloat(x) => ExprNode::LitFloat(x),
+            ExprNode::LitImag(x) => ExprNode::LitImag(x),
+            ExprNode::LitBool(x) => ExprNode::LitBool(x),
+            ExprNode::Range { lo, hi, step } => ExprNode::Range { lo: lo.map(|x| x.lift(f)), hi: hi.map(|x| x.lift(f)), step: step.map(|x| x.lift(f)) },
+            ExprNode::List(xs) => ExprNode::List(xs.into_iter().map(|x| x.lift(f)).collect()),
+            ExprNode::Unit => ExprNode::Unit,
+        }), f(self.1))    
+    }
+}
+
+impl<T> Ident<T>{
+    pub fn lift<U, F: Fn(T)->U>(self, f: &F)->Ident<U>{
+        Ident(self.0, f(self.1))
+    }
+}
+
+impl<T> GateModifier<T>{
+    pub fn lift<U, F: Fn(T)->U>(self, f: &F)->GateModifier<U>{
+        GateModifier(self.0, f(self.1))
+    }
+}
+impl<T> DerivingClause<T>{
+    pub fn lift<U, F: Fn(T)->U>(self, f: &F)->DerivingClause<U>{
+        DerivingClause(self.0, f(self.1))
+    }
+}
+impl<T> Qualified<T>{
+    pub fn lift<U, F: Fn(T)->U>(self, f: &F)->Qualified<U>{
+        Qualified(self.0.into_iter().map(|x| x.lift(f)).collect(), f(self.1))
+    }
+}
+
+
+impl<T> VarDef<T>{
+    pub fn lift<U, F: Fn(T)->U>(self, f: &F)->VarDef<U>{
+        VarDef{var: self.var.lift(f), ty: self.ty.map(|ty| {
+            ty.lift(f)
+        })}
+    }
+}
+
+
+impl<T> VarLexicalTy<T>{
+    pub fn lift<U, F: Fn(T)->U>(self, f: &F)->VarLexicalTy<U>{
+        use VarLexicalTyType::*;
+        VarLexicalTy(Box::new(match *self.0 {
+            VarLexicalTyType::Int => Int,
+            VarLexicalTyType::Qbit => Qbit,
+            VarLexicalTyType::Double => Double,
+            VarLexicalTyType::Boolean => Boolean,
+            VarLexicalTyType::Named(x) => Named(x.lift(f)),
+            VarLexicalTyType::Owned(x) => Owned(x.lift(f)),
+            VarLexicalTyType::Ref(x) => Ref(x.lift(f)),
+            VarLexicalTyType::Array(x, y) => Array(x.lift(f), y),
+            VarLexicalTyType::Slice(x) => Slice(x.lift(f)),
+            VarLexicalTyType::Range => Range,
+            VarLexicalTyType::Range3 => Range3,
+            VarLexicalTyType::Unit => Unit,
+        }), f(self.1))
+    }
+}
+
+impl<T> ImportEntry<T>{
+    pub fn lift<U, F: Fn(T)->U>(self, f: &F)->ImportEntry<U>{
+        ImportEntry(match self.0{
+            ImportEntryType::Single(q, i) => ImportEntryType::Single(q.lift(f), i.map(|x| x.lift(f))),
+            ImportEntryType::Tree(q, xs) => ImportEntryType::Tree(q.map(|x| x.lift(f)), xs.into_iter().map(|x| x.lift(f)).collect()),
+            ImportEntryType::All(q) => ImportEntryType::All(q.map(|x| x.lift(f))),
+        }, f(self.1))
+    }
+}
+
+impl<E, T> AST<E, T>{
+    pub fn lift<E2, T2, F: Fn(E)->E2, G: Fn(T)->T2>(self, f: &F, g: &G)->AST<E2, T2>{
+        AST(Box::new(match *self.0{
+            ASTNode::Block(block) => ASTNode::Block(block.lift(f, g)),
+            ASTNode::Expr(expr) => ASTNode::Expr(expr.lift(f)),
+            ASTNode::If { condition, then_block, else_block } => ASTNode::If { condition: condition.lift(f), then_block: then_block.lift(f, g), else_block: else_block.map(|b| b.lift(f, g))},
+            ASTNode::For { var, range, body } => ASTNode::For { var: var.lift(g), range: range.lift(f), body: body.lift(f, g) },
+            ASTNode::While { condition, body } => ASTNode::While{condition: condition.lift(f), body: body.lift(f, g)},
+            ASTNode::Defvar { definitions } => ASTNode::Defvar { definitions: definitions.into_iter().map(|(def, default)| {
+                (def.lift(g), default.map(|y| y.lift(f))) 
+            }).collect() },
+            ASTNode::Assign { lhs, rhs } => ASTNode::Assign { lhs: lhs.lift(f), rhs: rhs.lift(f) },
+            ASTNode::Gatedef { name, definition } => ASTNode::Gatedef { name: name.lift(g), definition: definition.lift(f) },
+            ASTNode::Unitary { modifiers, call } => ASTNode::Unitary { modifiers: modifiers.into_iter().map(|x| x.lift(g)).collect(), call: call.lift(f) },
+            ASTNode::Package(pkg) => ASTNode::Package(pkg.lift(g)),
+            ASTNode::Import(imp) => ASTNode::Import(imp.lift(g)),
+            ASTNode::Procedure { name, args, body, deriving_clauses } => ASTNode::Procedure { name: name.lift(g), args: args.into_iter().map(|x| x.lift(g)).collect(), body: body.lift(f, g), deriving_clauses: deriving_clauses.into_iter().map(|x| x.lift(g)).collect() },
+            ASTNode::Pass => ASTNode::Pass,
+            ASTNode::Return(x) => ASTNode::Return(x.map(|y| y.lift(f))),
+            ASTNode::Continue => ASTNode::Continue,
+            ASTNode::Break => ASTNode::Break,
+            ASTNode::Empty => ASTNode::Empty,
+        }), g(self.1))
+    }
+}
 
 // Lexical expr with span info attached.
 pub type LExpr = Expr<Span>;

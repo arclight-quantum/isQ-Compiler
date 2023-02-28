@@ -12,9 +12,11 @@ pub mod lang;
  */
 pub mod mlir;
 /**
- * Package resolution and and mangling.
+ * Identifier resolution pass.
+ * Contains package resolution.
  */
-pub mod package;
+pub mod resolve;
+pub mod error;
 #[cfg(test)]
 mod tests {
     #[test]

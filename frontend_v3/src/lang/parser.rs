@@ -47,6 +47,16 @@ fn next<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, TokenLoc<'a>>{
     }
 }
 
+/*
+TODO: currently we handle tokens where one is prefix of the other at parser level.
+(e.g. hard-encode possibly merged tokens by hand.
+```
+let foo: lifted<i32>=lift(0); // This requires us to parse the token `>=`!
+```
+)
+We need a better approach to deal with situations like this. For example, making the token sequence `>=' match both `>` `=` and `>=`.
+
+*/
 fn reserved_op(op_type: ReservedOp)->impl for <'s, 'a> Fn(TokenStream<'s, 'a>)->ParseResult<'s, 'a, TokenLoc<'a>>{
     move |s: TokenStream |{
         verify(next, |tok| {
@@ -109,7 +119,18 @@ fn tok_natural<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, usize>{
     return unexpected_token(tok);
 }
 
+fn tok_eof<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, ()>{
+    let (s, tok) = next(s0)?;
+    if let Token::EOF = tok.0{
+        return Ok((s, ()));
+    }
+    return unexpected_token(tok);
+}
 pub use statement::parse_toplevel_statement;
+
+pub fn parse_program<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, Vec<LAST>>{
+    all_consuming(terminated(parse_toplevel_statement, tok_eof))(s)
+}
 
 #[cfg(test)]
 mod tests{
