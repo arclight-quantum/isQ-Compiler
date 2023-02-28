@@ -102,6 +102,7 @@ main = do
                 Output s -> setExactlyOnce output s  "Output file set multiple times!"
                 Mode m -> setExactlyOnce mode m "Mode set multiple times!"
                 Version -> undefined
+                Help -> undefined
     input'<-readIORef input
     inc' <- readIORef inc
     output'<-readIORef output

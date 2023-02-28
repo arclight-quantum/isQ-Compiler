@@ -4,6 +4,7 @@ module ISQ.Lang.ISQv2Tokenizer where
 import Control.Exception (Exception)
 import Data.List.Split
 import Debug.Trace
+import ISQ.Lang.Utils
 }
 
 %wrapper "monadUserState"
@@ -15,16 +16,17 @@ $idfirstchar  = [$alpha \_ \@]
 $idrestchar   = [$alpha $digit \_]
 
 @ident = $idfirstchar $idrestchar*
-@qualify = (@ident \.)* @ident
+@qualified = (@ident \.)* @ident
 
 @decimal = $digit+
 @exponent = [eE] [\-\+] @decimal
 
 @reservedid = 
 	if|else|for|in|while|procedure|int|qbit|measure|print|defgate|pass|bp|return|package|import|
-    ctrl|nctrl|inv|bool|true|false|let|const|unit|M|break|continue|double|as|extern|gate|deriving|oracle|pi
+    ctrl|nctrl|inv|bool|true|false|let|const|unit|M|break|continue|double|as|extern|gate|deriving|oracle|to
 @reservedop = "|0>"|"=="|"="|"+"|"-"|"*"|"/"|"<"|">"|"<="|">="|"!="|and|"&&"|or|"||"|not|"!"|"%"|"&"|"|"|"^"
               |">>"|"<<"|","|"("|")"|"{"|"}"|"["|"]"|"."|":"|";"|"->"|"**"
+              |".."
 
 tokens :-
     <0> $white+ {skip}
@@ -45,7 +47,7 @@ tokens :-
       | @decimal \. @decimal @exponent? j
       | @decimal @exponent j  { tokenImagPart }
     <0> @ident {tokenIdent}
-    <0> @qualify {tokenQualified}
+    <0> @qualified {tokenQualified}
     <0> . {errc}
 
 {
@@ -57,11 +59,11 @@ data Token ann =
   | TokenQualified {annotationToken :: ann, tokenIdentV :: String}
   | TokenEOF {annotationToken :: ann} 
   | TokenStringLit {annotationToken :: ann, tokenStringLitV :: String} deriving (Eq, Show)
-data Pos = Pos {line :: Int, column :: Int, filename :: String} deriving (Show, Eq)
+data Span = Span {}
+
 type ISQv2Token = Token Pos
-instance Exception [Token Pos]
-class Annotated x where
-  annotation :: x ann->ann
+
+instance Exception [ISQv2Token]
 
 data AlexUserState = AlexUserState{
   stringBuffer :: String,
