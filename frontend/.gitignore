@@ -3,3 +3,6 @@
 /dist
 /result
 /isqc1.cabal
+/src/ISQ/Lang/ISQv2Parser.hs
+/src/ISQ/Lang/ISQv2Parser.info
+/src/ISQ/Lang/ISQv2Tokenizer.hs

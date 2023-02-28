@@ -316,7 +316,7 @@
       },
       "locked": {
         "lastModified": 1,
-        "narHash": "sha256-lPesSRt7VrzfYVkxyorBDUnv6pwj9CG118YWZi/1vlg=",
+        "narHash": "sha256-XFd8SzxT7BvH1ufI9w+bjWWpDvGGqYbRMskFfZQYpik=",
         "path": "./frontend",
         "type": "path"
       },
