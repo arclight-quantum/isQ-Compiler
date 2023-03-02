@@ -45,7 +45,8 @@
   };
   nixConfig = {
     bash-prompt-prefix = "(nix-isqc:$ISQC_DEV_ENV)";
-
+    extra-substituters = [ "https://arclight-quantum.cachix.org" ];
+    extra-trusted-public-keys = [ "arclight-quantum.cachix.org-1:DiMhc4M3H1Z3gBiJMBTpF7+HyTwXMOPmLVkjREzF404=" ];
   };
   outputs = { self, nixpkgs, flake-utils, isqc-base, isqc-driver, isq-simulator, isq-opt, isqc1, rust-overlay, vendor, pre-commit-hooks, flake-compat, isqc-docs }:
     let lib = nixpkgs.lib; in
