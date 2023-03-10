@@ -246,6 +246,11 @@ impl PackageClosure{
             (name, meta, table)
         })
     }
+    pub fn visible_package(&self, key: &str)->Option<(Arc<PackageMetadata>, &PackageSymbolTable)>{
+        let meta = self.visible_packages.get(key)?.clone();
+        let pkg = self.dependent_packages.get(&meta).unwrap();
+        Some((meta, pkg))
+    }
     pub fn me(&self)->&PackageSymbolTable{
         self.dependent_packages.get(&self.me).unwrap()
     }

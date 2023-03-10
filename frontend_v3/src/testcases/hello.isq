@@ -1,0 +1,13 @@
+int i1, i2;
+procedure first_sum(x: int)->int{
+    let range = 1:x;
+    let sum = 0;
+    for i in range{
+        sum = sum + i;
+    }
+    return sum;
+}
+fn main(){
+    //print a;
+    return 0;
+}

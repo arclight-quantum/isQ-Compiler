@@ -332,7 +332,12 @@ fn tokenize_lexeme<'a>(s: NomSpan<'a>)->IResult<NomSpan<'a>, Vec<TokenLoc<'a>>>{
 
 pub fn tokenizer<'a>(s: &'a str)->IResult<NomSpan<'a>, Vec<TokenLoc<'a>>>{
     let s2 = NomSpan::new(s);
-    tokenize_lexeme(s2).map(|(s, x)| (s, x.into_iter().filter(|y| if let Token::Comment = y.0 {true} else {false}).collect()))
+    tokenize_lexeme(s2).map(|(s, x)| (s, x.into_iter().filter(|y| if let Token::Comment = y.0 {false} else {true}).collect()))
+}
+
+pub fn tokenizer_all<'a>(s: &'a str)->IResult<NomSpan<'a>, Vec<TokenLoc<'a>>>{
+    let s2 = NomSpan::new(s);
+    all_consuming(tokenize_lexeme)(s2).map(|(s, x)| (s, x.into_iter().filter(|y| if let Token::Comment = y.0 {false} else {true}).collect()))
 }
 
 

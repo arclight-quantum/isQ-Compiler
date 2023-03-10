@@ -17,7 +17,7 @@ use ReservedId::*;
 
 use expr::parse_expr;
 use std::ops::Fn;
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum ParseError<'s, 'a>{
     // TODO: merge unexpected token for better error hint.
     UnexpectedToken(TokenLoc<'a>),
@@ -33,6 +33,20 @@ impl<'s, 'a> nom::error::ParseError<TokenStream<'s, 'a>> for ParseError<'s, 'a>{
     }
     fn append(input: TokenStream<'s, 'a>, kind: ErrorKind, mut other: Self) -> Self{
         other
+    }
+    fn or(self, other: Self)->Self{
+        match (self, other){
+            (ParseError::UnexpectedToken(a), ParseError::UnexpectedToken(b))=>{
+                if a.1.byte_offset<b.1.byte_offset{
+                    other
+                }else{
+                    self
+                }
+            }
+            _=>{
+                other
+            }
+        }
     }
 }
 
@@ -59,26 +73,24 @@ We need a better approach to deal with situations like this. For example, making
 */
 fn reserved_op(op_type: ReservedOp)->impl for <'s, 'a> Fn(TokenStream<'s, 'a>)->ParseResult<'s, 'a, TokenLoc<'a>>{
     move |s: TokenStream |{
-        verify(next, |tok| {
-            if let Token::ReservedOp(op) = tok.0{
-                if op==op_type{
-                    return true;
-                }
+        let (s, tok) = next(s)?;
+        if let Token::ReservedOp(op) = tok.0{
+            if op==op_type{
+                return Ok((s, tok));
             }
-            return false;
-        })(s)
+        }
+        return unexpected_token(tok);
     }
 }
 fn reserved_id(id_type: ReservedId)->impl for <'s, 'a> Fn(TokenStream<'s, 'a>)->ParseResult<'s, 'a, TokenLoc<'a>>{
     move |s: TokenStream |{
-        verify(next, |tok| {
-            if let Token::ReservedId(id) = tok.0{
-                if id==id_type{
-                    return true;
-                }
+        let (s, tok) = next(s)?;
+        if let Token::ReservedId(id) = tok.0{
+            if id==id_type{
+                return Ok((s, tok));
             }
-            return false;
-        })(s)
+        }
+        return unexpected_token(tok);
     }
 }
 
@@ -129,7 +141,7 @@ fn tok_eof<'s, 'a>(s0: TokenStream<'s, 'a>)->ParseResult<'s, 'a, ()>{
 pub use statement::parse_toplevel_statement;
 
 pub fn parse_program<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, Vec<LAST>>{
-    all_consuming(terminated(parse_toplevel_statement, tok_eof))(s)
+    all_consuming(parse_toplevel_statement)(s)
 }
 
 #[cfg(test)]

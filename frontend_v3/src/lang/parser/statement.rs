@@ -1,17 +1,44 @@
 use crate::lang::ast::{GateModifier, GateModifierType, ImportEntry, DerivingClauseType, DerivingClause};
 
 use super::*;
+use nom::error::ParseError as NomParseError;
+
+// Many0 terminated by a certain parser.
+// This can be seen as a parser version of "list parsing with lookahead".
+// This combinator solves the problem of propagating an error out of many0.
+// When meeting an error, the error of parsing the next entry is propagated out.
+pub fn many0_terminated<I, O, O2, E, F, T>(mut f: F, mut terminated: T) -> impl FnMut(I) -> IResult<I, (Vec<O>, O2), E>where
+    I: Clone + InputLength,
+    F: Parser<I, O, E>,
+    T: Parser<I, O2, E>,
+    E: NomParseError<I>{
+        move |s| {
+            let mut result = vec![];
+            let mut s = s;
+            loop{
+                if let Ok((s2, o)) = terminated.parse(s.clone()){
+                    return Ok((s2, (result, o)));
+                }
+                let (s2, item) = f.parse(s)?; // propagate error from parsing list items out.
+                result.push(item);
+                s = s2;
+            }
+            
+        }
+    }
+
+
 pub fn parse_toplevel_statement<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, Vec<LAST>>{
     let (s, package_decl) = opt(parse_statement_package)(s)?;
-    let (s, top_stmts) = many0(alt((
+    let (s, top_stmts) = many0_terminated(cut(alt((
         parse_statement_import,
         parse_statement_procedure,
         parse_statement_gatedef,
         parse_statement_let_defvar,
         // Legacy grammar
         parse_cstyle_defvar,
-    )))(s)?;
-    Ok((s, package_decl.into_iter().chain(top_stmts.into_iter()).collect()))
+    ))), eof)(s)?;
+    Ok((s, package_decl.into_iter().chain(top_stmts.0.into_iter()).collect()))
 }
 pub fn parse_statement<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST>{
     alt((
@@ -38,8 +65,8 @@ pub fn parse_statement<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LAST
 
 fn parse_statement_block<'s, 'a>(s: TokenStream<'s, 'a>)->ParseResult<'s, 'a, LASTBlock>{
     map(tuple((reserved_op(LBrace),
-     many0(parse_statement),
-     reserved_op(RBrace))),  |(a, b, c)|{
+     many0_terminated(cut(parse_statement), reserved_op(RBrace))
+     )),  |(a, (b, c))|{
         ASTBlock(b, a.1.span_over(c.1))
      })(s)
 }
@@ -397,7 +424,7 @@ mod legacy{
 
 }
 use legacy::*;
-use nom::sequence;
+use nom::{sequence, InputLength, Parser};
 
 #[cfg(test)]
 mod tests{

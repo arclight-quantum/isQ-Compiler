@@ -286,6 +286,41 @@ impl<T> ImportEntry<T>{
             ImportEntryType::All(q) => ImportEntryType::All(q.map(|x| x.lift(f))),
         }, f(self.1))
     }
+    fn traverse_import<'a>(&'a self, prefix: &[&'a str], collector: &mut Vec<(Vec<&'a str>, Option<(&'a str, Option<&'a str>)>)>) {
+        match &self.0{
+            ImportEntryType::Single(q, rename) => {
+                let mut prefix = prefix.to_vec();
+                for part in q.0.iter(){
+                    prefix.push(&part.0);
+                }
+                let last_name = prefix.pop().unwrap();
+                collector.push((prefix, Some((last_name, rename.as_ref().map(|x| &*x.0)))))
+
+            },
+            ImportEntryType::Tree(q, subtree) => {
+                let mut prefix = prefix.to_vec();
+                for part in q.iter().flat_map(|x| x.0.iter()){
+                    prefix.push(&part.0);
+                }
+                for tree in subtree{
+                    tree.traverse_import(&prefix, collector);
+                }
+            },
+            ImportEntryType::All(q) => {
+                let mut prefix = prefix.to_vec();
+                for part in q.iter().flat_map(|x| x.0.iter()){
+                    prefix.push(&part.0);
+                }
+                collector.push((prefix, None));
+            },
+        }
+    }
+    pub fn imports<'a> (&'a self)->Vec<(Vec<&'a str>, Option<(&'a str, Option<&'a str>)>)>{
+        let mut all_imports = vec![];
+        self.traverse_import(&[], &mut all_imports);
+        all_imports
+
+    }
 }
 
 impl<E, T> AST<E, T>{
